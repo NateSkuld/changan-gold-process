@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b1315">
+  <meta name="description" content="走进金矿加工设备内部。以可交互的三维模型探索球磨机、浮选机和金矿加工流程。">
+  <title>长安金矿 · 金矿工艺图谱</title>
+  <link rel="icon" type="image/svg+xml" sizes="any" href="./assets/brand/changan-mark.svg">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./layout.css">
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
+  <script type="module" src="./app.js"></script>
+</head>
+<body class="layout-v4">
+  <div class="app-shell">
+    <header class="site-header">
+      <a class="brand" href="./" aria-label="长安金矿 · 金矿工艺图谱首页"><img class="brand-mark" src="./assets/brand/changan-mark.svg" width="46" height="46" alt=""><span>长安金矿<small>金矿工艺图谱</small></span></a>
+      <nav class="primary-nav" aria-label="主导航"><button class="nav-link active" id="equipment-nav" aria-current="page">设备探索<span>01</span></button><button class="nav-link" id="process-nav">工艺全景<span>02</span></button><button class="nav-link" id="principle-nav">原理手册<span>03</span></button><button class="nav-link" id="reference-nav">现场资料<span>04</span></button></nav>
+      <div class="header-end"><span class="live-dot"></span><span>交互式工业图谱</span><span class="edition">VOL. 004</span></div>
+    </header>
+    <main>
+      <section class="workspace" aria-label="金矿设备三维交互区域">
+        <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+        <div class="intro-panel"><div class="hero-copy"><div class="eyebrow"><span></span> FROM ORE TO UNDERSTANDING</div><h1 id="hero-title">让原理，<br>清晰可见<span>。</span></h1><p id="hero-description">穿过钢铁的表面，走进黄金的旅程。<br>以三维视角，重新认识每一台设备。</p></div>
+<div class="equipment-copy" id="equipment-copy"><div class="section-index"><span id="equipment-number">02</span><i></i><span id="equipment-stage">磨矿 / MILLING</span></div><div class="equipment-model" id="equipment-model"></div><h2 id="equipment-name">球磨机</h2><div class="english-name" id="equipment-english">BALL MILL</div><p id="equipment-summary">钢球与矿石在旋转中相遇，让有用矿物逐步解离。</p><div class="evidence-badge" id="evidence-badge">依据实拍模型重建 · 尺寸示意</div><button id="learn-button" class="text-button">理解它如何工作 <span>↗</span></button><div class="source-actions"><button id="crushing-entry">破碎工段 ↗</button><button id="reference-button">对照原图 ↗</button><button id="back-to-process" hidden>← 返回所选工段</button></div></div></div>
+        <div class="viewer-panel">
+          <div class="model-meta"><span class="mono" id="drawing-number">FIG. 02 / MILLING</span><span class="model-status"><i></i><span id="render-state">实时三维 · 原理示意</span></span></div>
+          <div id="tour-launch" class="tour-launch"><div><span>FOLLOW THE MATERIAL</span><strong>从原矿，到精矿与回水。</strong><small>逐段跟随矿流，读懂整条生产线</small></div><button id="tour-start"><span aria-hidden="true">▶</span> 一键全流程演示</button></div>
+          <div id="tour-statusbar" class="tour-statusbar" hidden><span id="tour-state">全流程演示</span><strong id="tour-current-title"></strong><span id="tour-position"></span></div>
+          <div class="process-controls" id="process-controls" hidden>
+            <div class="circuit-navigation"><span class="navigation-label">按回路阅读</span><div id="circuit-selector" class="circuit-selector" role="group" aria-label="选择跨工段工艺回路"></div><button id="technology-button" class="technology-button">技术依据 ↗</button></div>
+            <div class="stage-navigation"><div class="stage-selector" id="stage-selector" role="group" aria-label="选择生产工段" hidden></div><button class="node-directory" id="node-directory" hidden>36 节点目录 ↗</button></div>
+            <section id="circuit-guide" class="circuit-guide" aria-label="当前工艺回路解读" hidden></section>
+            <section id="slurry-controls" class="slurry-controls" aria-label="工艺路径聚焦" hidden><div class="slurry-control-row"><span class="navigation-label">追踪流向</span><div id="slurry-selector" class="slurry-selector" role="group" aria-label="选择工艺路径"></div></div><p id="slurry-description" aria-live="polite"></p></section>
+            <div class="crushing-tools" id="crushing-tools" hidden><div class="crushing-focus" role="group" aria-label="破碎回路聚焦"><button data-crushing-focus="all" class="active">全段</button><button data-crushing-focus="coarse">粗碎给料</button><button data-crushing-focus="screening">预筛分流</button><button data-crushing-focus="closed">细碎闭路</button></div><button id="site-conveyor">1# 胶带机 ↗</button><small>工艺据展板 · 外观据实拍 · 布置示意</small><p id="crushing-caption">±40 mm 预筛分流 · ±10 mm 细碎闭路</p></div>
+          </div>
+          <div class="scene-workbench">
+            <div class="scene-frame"><div id="viewport" role="group" aria-label="可旋转的球磨机三维模型。可使用下方按钮切换视图，使用零件目录查看内部结构。"><div id="hotspots" aria-label="模型零件标注"></div><div class="loading" id="loading"><span class="loading-orbit"></span><span>正在构建设备图谱</span><small>PREPARING YOUR EXPLORATION</small></div></div><div class="view-compass" aria-hidden="true"><svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="27"/><path d="M36 7V17 M36 55V65 M7 36H17 M55 36H65 M36 36L50 24 M36 36L19 29 M36 36V53"/><text x="52" y="23">X</text><text x="13" y="27">Z</text><text x="33" y="62">Y</text></svg></div><div class="plant-hover" id="plant-hover" hidden></div></div>
+            <aside class="part-drawer" id="part-drawer" aria-label="零件详情" hidden><div class="drawer-header"><span>INSIDE THE MACHINE</span><button class="icon-button" id="close-parts" aria-label="关闭零件详情">×</button></div><div class="part-content"><div class="part-counter" id="part-counter">01 / 06</div><h3 id="part-title">筒体</h3><p id="part-description"></p><div class="part-list" id="part-list"></div></div></aside>
+          </div>
+          <section id="tour-panel" class="tour-panel" aria-label="全流程演示控制" hidden>
+            <div class="tour-heading"><div><span class="tour-eyebrow">THE COMPLETE JOURNEY / 全流程</span><h3 id="tour-title"></h3></div><div class="tour-actions"><button id="tour-prev" aria-label="上一个演示环节">← 上一段</button><button id="tour-play" aria-pressed="true">暂停演示</button><button id="tour-next" aria-label="下一个演示环节">下一段 →</button></div></div>
+            <div id="tour-meter" class="tour-meter" role="progressbar" aria-label="全流程演示进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="tour-fill"></span></div>
+            <nav id="tour-chapters" class="tour-chapters" aria-label="跳到演示工段"></nav>
+            <div id="tour-announcement" class="tour-reading" aria-live="polite" aria-atomic="true"><p id="tour-transition" class="tour-transition" hidden></p><p id="tour-description"></p></div>
+            <div id="tour-devices" class="tour-devices" aria-label="本段设备，点击结束演示并查看内部"></div>
+            <div class="tour-bottom"><label for="tour-step-select">跳到环节 <select id="tour-step-select"></select></label><div><button id="tour-replay">从头演示 ↻</button><button id="tour-exit">结束演示 · 自由探索</button></div></div>
+            <small id="tour-note">金色追踪物料，蓝色追踪回水 · 拖动模型会暂停演示 · 演示时长不代表生产时间</small>
+          </section>
+          <section id="explosion-panel" class="explosion-panel" aria-label="分层拆解演示" hidden>
+            <div class="explosion-heading"><div><span class="explosion-eyebrow">ASSEMBLY / 装配关系</span><h3 id="explosion-title">逐层展开，观察配合</h3></div><div class="explosion-actions"><button id="explosion-play" aria-pressed="false">播放演示</button><button id="explosion-replay">重新演示 ↻</button><button id="explosion-expand">全部展开</button><button id="explosion-collapse">合拢复位</button></div></div>
+            <div class="explosion-progress"><label for="explosion-range">拆解进度</label><input id="explosion-range" type="range" min="0" max="100" step="1" value="0" aria-describedby="explosion-description"><output id="explosion-value" for="explosion-range">0%</output></div>
+            <div id="explosion-steps" class="explosion-steps" aria-label="选择拆解层次"></div>
+            <p id="explosion-description"></p><div id="explosion-parts" class="explosion-parts" aria-label="本层零件"></div>
+            <small>虚线连接原装配位置 · 可旋转查看 · 结构分层示意</small>
+          </section>
+          <section id="operation-panel" class="operation-panel" aria-label="内部运行过程" hidden>
+            <div class="operation-heading"><div><span class="operation-eyebrow">FOLLOW THE SLURRY / 内部运行</span><h3 id="operation-title"></h3></div><button id="operation-all" aria-pressed="true">完整过程</button></div>
+            <p id="operation-summary"></p>
+            <section id="operation-cycle" class="operation-cycle" aria-label="压滤运行周期" hidden><div class="cycle-heading"><span>当前演示 <strong id="cycle-phase"></strong></span><div class="cycle-actions"><button id="cycle-play" aria-pressed="true">暂停周期</button><button id="cycle-restart">从头演示 ↻</button></div></div><div class="cycle-meter" id="cycle-meter" role="progressbar" aria-label="示意周期进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="cycle-fill"></span></div><div id="cycle-stages" class="cycle-stages" role="group" aria-label="选择压滤演示阶段"></div><p id="cycle-description"></p><small>演示时间经压缩，不代表实际生产周期</small></section>
+            <div id="operation-steps" class="operation-steps" role="group" aria-label="选择运行观察要点"></div>
+            <div class="operation-detail"><p id="operation-description" aria-live="polite"></p><button id="operation-part" hidden>查看对应零件 ↗</button></div>
+            <small>运动轨迹与颜色用于解释原理 · 结构、流速及比例为教学示意</small>
+            <details id="operation-sources" class="operation-sources" hidden><summary>查看原理依据</summary><div id="operation-source-links"></div></details>
+          </section>
+          <section id="equipment-connections" class="equipment-connections" aria-label="与前后工段的连接" hidden><div class="connection-heading"><span>沿流程继续</span><button id="recovery-circuit-button">查看精尾矿与回水全程 ↗</button></div><p id="equipment-connection-description"></p><div id="equipment-connection-links"></div></section>
+          <div class="viewer-toolbar"><div class="control-dock" id="control-dock"><div class="segmented" role="group" aria-label="模型视图"><button data-view="solid" aria-pressed="false"><svg viewBox="0 0 20 20"><path d="m10 2 7 4v8l-7 4-7-4V6Z M3 6l7 4 7-4 M10 10v8"/></svg>完整外观</button><button class="active" data-view="cutaway" aria-pressed="true"><svg viewBox="0 0 20 20"><path d="M10 2 3 6v8l7 4V2 M10 10l7-4v8l-7 4 M13 4l4 2"/></svg>内部剖视</button><button data-view="exploded" aria-pressed="false"><svg viewBox="0 0 20 20"><path d="m10 1 6 3-6 3-6-3Z M4 9l6 3 6-3 M4 14l6 3 6-3"/></svg>爆炸拆解</button></div><span class="dock-divider"></span><button class="icon-button" id="play-button" aria-label="暂停演示动画" title="暂停演示动画" aria-pressed="true"><svg viewBox="0 0 20 20"><path d="M7 4v12 M13 4v12"/></svg></button><button class="icon-button" id="reset-button" aria-label="重置相机" title="重置相机"><svg viewBox="0 0 20 20"><path d="M4 8a6 6 0 1 1 0 5 M4 3v5h5"/></svg></button></div><div class="viewer-tools"><button id="labels-button" aria-pressed="true">标注 <span class="toggle active"></span></button><button id="parts-button">零件目录 <span>＋</span></button><button id="fullscreen-button" aria-label="全屏查看">⛶</button></div></div>
+          <div class="plant-legend" id="plant-legend" hidden><span class="main">物料</span><span class="concentrate">精矿</span><span class="return">返砂 / 中矿</span><span class="tailings">尾矿</span><span class="water">回水</span><span class="uncertain">虚线待核对</span></div>
+          <div class="interaction-hint" id="interaction-hint"><span>↔</span> 拖动旋转 <i></i> 滚轮缩放 <i></i> 点击零件探索</div>
+        </div>
+      </section>
+      <section class="process-strip" aria-label="浮选工艺设备导航"><div class="strip-heading"><span>THE FLOTATION JOURNEY</span><span>浮选工艺 <b>·</b> 从原矿到金精矿</span><button id="flow-toggle">查看工艺全景 <span>↗</span></button></div><div class="equipment-rail" id="equipment-rail"></div><div class="circuit-note"><span><i class="gold-dot"></i>三段一闭路破碎 · 阶段磨矿阶段选别 · 中矿再磨再选</span><span>已接入 8 张现场资料 / 型号差异待核对</span></div></section>
+    </main>
+    <footer><span>长安金矿 <b>·</b><i>探索，源于理解。</i></span><button id="about-button">关于这份图谱 <span>↗</span></button><span class="footer-right">BUILT TO REVEAL. <em>DESIGNED TO UNDERSTAND.</em></span></footer>
+  </div>
+  <dialog id="info-dialog"><div class="dialog-top"><span class="eyebrow">长安金矿 / FIELD NOTES</span><button class="icon-button" id="close-dialog" aria-label="关闭手册">×</button></div><div id="dialog-content"></div></dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <noscript>请启用 JavaScript 以体验交互式三维设备图谱。</noscript>
+</body>
+</html>
