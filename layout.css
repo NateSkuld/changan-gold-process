@@ -1,4 +1,25 @@
 /* Static interface uses document flow; only 3D anchors float over the canvas. */
+.layout-v4 .field-controls {padding:14px 16px;border:1px solid #53634880;border-radius:5px;background:#1b2a233d;min-width:0}
+.layout-v4 .field-heading {display:flex;align-items:center;justify-content:space-between;gap:10px 18px;flex-wrap:wrap}
+.layout-v4 .field-kicker {font:9px/1.5 monospace;letter-spacing:1.5px;color:var(--gold)}
+.layout-v4 .field-heading h3 {margin:4px 0 0;font-size:15px;line-height:1.5;font-weight:500;letter-spacing:.5px}
+.layout-v4 .field-actions,.layout-v4 .field-card-links {display:flex;flex-wrap:wrap;gap:7px}
+.layout-v4 .field-actions button,.layout-v4 .field-card-links button {color:#c3cdbe;border:1px solid #4e6351;border-radius:3px;padding:7px 10px;font-size:11px;line-height:1.65}
+.layout-v4 .mill-units {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px}
+.layout-v4 .mill-units button {min-width:0;text-align:left;border:1px solid #3c5448;border-radius:3px;color:#a9b7a9;padding:8px 12px;display:flex;align-items:baseline;flex-wrap:wrap;gap:3px 10px}
+.layout-v4 .mill-units strong {font-size:12px;font-weight:550;line-height:1.6}
+.layout-v4 .mill-units span {font-size:10px;line-height:1.6}
+.layout-v4 .mill-units [aria-pressed=true],.layout-v4 .field-card-links [aria-pressed=true] {border-color:#bfa36d;color:#e2c994;background:#59523a33}
+.layout-v4 .field-card-links {margin:15px 0}
+.layout-v4 .field-rows {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px;margin:18px 0 10px}
+.layout-v4 .field-rows div {padding:10px 0;border-top:1px solid var(--line);min-width:0}
+.layout-v4 .field-rows dt {font-size:11px;line-height:1.6;color:#96a99b}
+.layout-v4 .field-rows dd {margin:3px 0 0;color:#e0e7db;font-size:13px;line-height:1.65;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+@media(max-width:600px){
+  .layout-v4 .field-controls {padding:12px}
+  .layout-v4 .mill-units button {display:grid;gap:0;padding:7px 8px}
+  .layout-v4 .field-rows {gap:0 12px}
+}
 .layout-v4 .brand {flex:0 0 auto;gap:12px;white-space:nowrap}
 .layout-v4 .brand-mark {display:block;width:46px;height:46px;flex:none;object-fit:contain}
 .layout-v4 .brand>span {font-family:var(--font);font-size:24px;font-weight:500;letter-spacing:3px;line-height:1.2}

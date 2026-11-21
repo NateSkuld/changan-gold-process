@@ -6,3 +6,7 @@ export const SITE_REFERENCES = [
   {file:'IMG_7482',title:'1# 胶带机与厂房钢架',note:'倾斜胶带机、橙色栏杆与酒红钢柱；输送方向、上下游端点待核对。'},
 ].map(item=>({...item,url:`./references/2026-10-21/${item.file}.jpg`}));
 export const BOARD_REFERENCES = ['选矿工艺流程图','选厂工艺流程简介','圆锥破碎机教学模型','球磨机教学模型'].map((title,i)=>({title,note:'2026.10.12 / 展板与教学模型',url:`./references/reference-0${i+1}.jpg`}));
+export const LINER_REFERENCES = [
+  {title:'橡胶端衬板与钢球',note:'端面扇形衬板围绕中心通孔排列，筒底仍为钢球。照片用作 2#、3# 共同结构参考。',url:'./references/2026-11-19/liner-7682.jpg'},
+  {title:'筒壁纵向提升条',note:'筒壁局部：圆钝的黑色提升条沿轴向延伸，可见衬板分段接缝。',url:'./references/2026-11-19/liner-7683.jpg'},
+];

@@ -1,9 +1,17 @@
 import * as THREE from 'three';
+import { rubberPanelGeometry } from './rubber-lining.js';
 
 /** Ball-mill teaching model based on the supplied photograph; dimensions are illustrative. */
-export function createBallMill() {
+export function createBallMill(options = {}) {
+  const requested = Number(typeof options === 'object' ? options?.unit : options);
+  const unit = requested === 2 || requested === 3 ? requested : 1;
+  const rubberLined = unit !== 1;
+  const workingLength = unit === 2 ? 4000 : 3600;
+  const lengthRatio = workingLength / 3600;
+  const endOffset = 2.2 * (lengthRatio - 1);
   const group = new THREE.Group();
-  group.name = '球磨机 · 教学模型结构';
+  group.name = unit + '# 球磨机 · ' + (rubberLined ? '橡胶衬板' : '钢衬板');
+  Object.assign(group.userData, {unit, linerMaterial: rubberLined ? 'rubber' : 'steel', workingLengthMM:workingLength});
   const parts = [];
   const CY = 2.18;
   const M = {
@@ -105,15 +113,15 @@ export function createBallMill() {
   // Keep the back wall and continuous upper/lower strips. Only the front
   // 120-degree window opens; narrow end bands retain its rectangular outline.
   const cutSector = angle => Math.cos(angle) > .5;
-  const WINDOW_LENGTH = 3.66;
-  const SHELL_LENGTH = 4.4;
+  const WINDOW_LENGTH = 3.66 * lengthRatio;
+  const SHELL_LENGTH = 4.4 * lengthRatio;
   // Explode translations separate the complete assemblies, including all
   // covers. Bearings stay on the floor as a common assembly datum. The paths
   // illustrate relationships, not a maintenance or lifting procedure.
   const explosionSteps = [
     { title: '移开传动', description: '齿圈向左、电机组向左前方移开，保留两者与筒体左端的传动关系。', parts: ['gear', 'drive'] },
     { title: '提起筒体', description: '完整筒体连同端盖上移，外罩保留，露出原本包在里面的结构。', parts: ['shell'] },
-    { title: '展开筒内', description: '衬板与钢球向前分为两层，分别观察内壁保护层和研磨介质。', parts: ['liners', 'charge'] },
+    { title: '展开筒内', description: rubberLined ? '近侧橡胶筒衬单独移开，露出纵向提升条、两端扇形衬板与独立的钢球层。' : '钢衬板与钢球向前分为两层，分别观察内壁保护层和研磨介质。', parts: rubberLined ? ['liners', 'liner-panel', 'charge'] : ['liners', 'charge'] },
     { title: '对照支承', description: '两端中空轴成组上移，主轴承与基础留在原位作为装配基准。', parts: ['trunnions', 'bearings'] },
   ];
 
@@ -129,12 +137,12 @@ export function createBallMill() {
       sector(shell, 1.14, 1.225, SHELL_LENGTH, a, b, M.shell);
     }
   }
-  for (const x of [-2.13, 2.13]) sector(shell, 1.22, 1.268, .11, 0, Math.PI * 2, M.shellEdge, x);
+  for (const x of [-2.13 - endOffset, 2.13 + endOffset]) sector(shell, 1.22, 1.268, .11, 0, Math.PI * 2, M.shellEdge, x);
   // Longitudinal bolt rows follow both edges of the model's opening.
   for (const side of [-1, 1]) {
     const angle = side * Math.PI / 3;
     for (let i = 0; i < 13; i++) {
-      const x = -1.95 + i * .325;
+      const x = (-1.95 + i * .325) * lengthRatio;
       const fastener = cyl(shell, .035, .085, M.dark, x, CY + 1.264 * Math.sin(angle), 1.264 * Math.cos(angle), 'y', 6);
       fastener.quaternion.setFromUnitVectors(V(0, 1, 0), V(0, Math.sin(angle), Math.cos(angle)));
     }
@@ -145,15 +153,17 @@ export function createBallMill() {
     sector(shell, 1.134, 1.237, .045, -Math.PI / 3, Math.PI / 3, M.steelBright, x);
   }
   for (const sign of [-1, 1]) {
-    const x = sign * 2.24;
+    const x = sign * (2.24 + endOffset);
     sector(shell, .53, 1.27, .15, 0, Math.PI * 2, M.shellEdge, x);
     sector(shell, 1.22, 1.3, .18, 0, Math.PI * 2, M.steel, x);
     // The end covers remain legible around the central inspection window.
-    cyl(shell, 1.18, .45, M.shell, sign * 2.48, CY, 0, 'x', 64, false, .56).rotation.z = sign > 0 ? -Math.PI / 2 : Math.PI / 2;
-    ring(shell, 1.276, .022, M.steelBright, sign * 2.335, CY, 0);
-    bolts(shell, sign * 2.35, 1.245, 40, .037);
-    sector(shell, .4, .58, .1, 0, Math.PI * 2, M.steel, sign * 2.76);
-    bolts(shell, sign * 2.83, .505, 12, .034);
+    const coverGeo = cachedGeometry('open-end-cover', () => new THREE.LatheGeometry(
+      [[1.18,-.225],[.56,.225],[.306,.225],[.306,.166],[1.102,-.225],[1.18,-.225]].map(p => new THREE.Vector2(...p)), 64));
+    mesh(shell, coverGeo, M.shell, sign * (2.48 + endOffset), CY, 0).rotation.z = -sign * Math.PI / 2;
+    ring(shell, 1.276, .022, M.steelBright, sign * (2.335 + endOffset), CY, 0);
+    bolts(shell, sign * (2.35 + endOffset), 1.245, 40, .037);
+    sector(shell, .4, .58, .1, 0, Math.PI * 2, M.steel, sign * (2.76 + endOffset));
+    bolts(shell, sign * (2.83 + endOffset), .505, 12, .034);
   }
   // The inspection cover, lifting eyes, and seam fasteners give the shell scale.
   box(shell, .85, .065, .43, M.darkTeal, -.72, 3.43, .02, true);
@@ -165,35 +175,74 @@ export function createBallMill() {
     box(shell, .2, .075, .22, M.shellEdge, x, 3.4, -.23, true);
   }
 
-  const liner = part('liners', '矩形分块衬板与紧固件', '照片可见连续排列的矩形衬板与紧固件，本图据此表现筒体内壁的分块结构。衬板保护筒体；低凸起条用于补充展示带动研磨介质的原理，其具体轮廓需由现场图纸确认。', [0, 2.63, -.89], [1.45, .65, 2.9]);
-  for (let row = 0; row < 9; row++) {
-    for (let i = 0; i < 24; i++) {
-      const a = i / 24 * Math.PI * 2 + .008;
-      const b = (i + 1) / 24 * Math.PI * 2 - .008;
-      const mid = (a + b) / 2;
-      const cut = cutSector(mid);
-      const x = -1.952 + row * .488;
-      sector(liner, 1.048, 1.143, .476, a, b, (row + i) % 5 === 0 ? M.steelBright : M.steel, x, cut);
-      const stud = cyl(liner, .022, .025, M.dark, x, CY + 1.032 * Math.sin(mid), 1.032 * Math.cos(mid), 'y', 6, cut);
-      stud.quaternion.setFromUnitVectors(V(0, 1, 0), V(0, Math.sin(mid), Math.cos(mid)));
-      if (i % 4 === 0) {
-        sector(liner, 1.012, 1.052, .474, mid - .02, mid + .02, M.dark, x, cut);
+  const liner = part('liners', rubberLined ? '橡胶筒衬与扇形端衬' : '分块钢衬板与紧固件',
+    rubberLined ? '筒壁上的长条沿轴向延伸；到达端面，扇形橡胶衬板围绕中空轴开口径向排列。板块接缝、圆肩凸条与环形收口参考筒内实拍，数量与断面尺寸为示意。'
+      : '1# 球磨机使用钢衬板。保留教学模型照片中成排的矩形金属衬块与紧固件；衬板保护筒壁，并将钢球提升后释放。', [0, 2.63, -.89], [1.45, .65, 2.9]);
+  let frontLiner = null;
+  if (rubberLined) {
+    frontLiner = part('liner-panel', '近侧橡胶衬板与提升条', '沿筒体轴线，橡胶提升条从较平的筒衬表面凸起。圆肩轮廓和宽板面来自现场照片；拆解时移开近侧这组衬板，便于观察内表面。', [0, 2.45, 1.05], [-2.3, 1.45, 3.65]);
+    const rubber = new THREE.MeshStandardMaterial({ color: 0x393c3d, metalness: .025, roughness: .46 });
+    const rubberAlt = rubber.clone(); rubberAlt.color.setHex(0x323638); rubberAlt.roughness = .50;
+    rubber.name = rubberAlt.name = '模压橡胶';
+    const count = 18, pitch = 2 * Math.PI / count, bays = 3, bayLength = 4.24 * lengthRatio / bays;
+    const panel = rubberPanelGeometry({pitch, length:bayLength - .018});
+    const ends = [-1, 1].map(endSide => rubberPanelGeometry({pitch, endSide}));
+    for (let i = 0; i < count; i++) {
+      const angle = (i + .5) * pitch, cut = cutSector(angle);
+      for (let j = 0; j < bays; j++) {
+        const obj = mesh(cut ? frontLiner : liner, panel, (i + j) % 4 === 0 ? rubberAlt : rubber, (j - 1) * bayLength, CY, 0, cut);
+        obj.rotation.x = -angle;
+        obj.userData.linerRole = 'axial-lifter';
+      }
+      for (const [k, side] of [[0, -1], [1, 1]]) {
+        const obj = mesh(liner, ends[k], i % 4 === 0 ? rubberAlt : rubber, side * endOffset, CY, 0, cut);
+        obj.rotation.x = -angle;
+        obj.userData.linerRole = 'radial-end-plate';
       }
     }
-  }
-  // End liners remain behind the shell end covers, but open with the section.
-  for (const side of [-1, 1]) {
+    for (const side of [-1, 1]) for (const [a,b,cut] of windowArcs) {
+      const collar = sector(liner, .287, .392, .12, a, b, rubber, side * (2.201 + endOffset), cut);
+      collar.userData.linerRole = 'throat-collar';
+    }
+  } else {
+    for (let row = 0; row < 9; row++) {
+      for (let i = 0; i < 24; i++) {
+        const a = i / 24 * Math.PI * 2 + .008;
+        const b = (i + 1) / 24 * Math.PI * 2 - .008;
+        const mid = (a + b) / 2;
+        const cut = cutSector(mid);
+        const x = -1.952 + row * .488;
+        sector(liner, 1.048, 1.143, .476, a, b, (row + i) % 5 === 0 ? M.steelBright : M.steel, x, cut);
+        const stud = cyl(liner, .022, .025, M.dark, x, CY + 1.032 * Math.sin(mid), 1.032 * Math.cos(mid), 'y', 6, cut);
+        stud.quaternion.setFromUnitVectors(V(0, 1, 0), V(0, Math.sin(mid), Math.cos(mid)));
+        if (i % 4 === 0) {
+          sector(liner, 1.012, 1.052, .474, mid - .02, mid + .02, M.dark, x, cut);
+        }
+      }
+    }
     for (let i = 0; i < 12; i++) {
       const a = i * Math.PI / 6 + .025;
       const b = (i + 1) * Math.PI / 6 - .025;
-      sector(liner, .42, 1.08, .065, a, b, M.dark, side * 2.15, cutSector((a + b) / 2));
+      sector(liner, .42, 1.08, .065, a, b, M.dark, -2.15, cutSector((a + b) / 2));
+    }
+    // The rotating discharge diaphragm is part of the drum, upstream of
+    // the hollow shaft. Actual slots span the working annulus in the end
+    // face; do not put a stationary screen across the shaft itself.
+    for (const [a,b,cut] of windowArcs) for (const [inner,outer] of
+      [[.01,.40],[.40,.47],[.63,.66],[.81,.84],[.98,1.085]]) {
+      sector(liner, inner, outer, .075, a, b, M.steel, 2.15, cut);
+    }
+    for (let i = 0; i < 48; i++) {
+      const angle = (i + .5) * Math.PI / 24;
+      const rib = sector(liner, .465, .985, .075, -.036, .036, M.dark, 2.15, cutSector(angle));
+      rib.rotation.x = -angle;
     }
   }
 
-  const charge = part('charge', '钢球研磨介质', '钢球与矿粒为补充原理演示，提供的教学模型照片中未见装载介质。不同粒径钢球通过冲击和摩擦使矿粒变细；图中运动、装载量和转速均为示意，需按现场资料确认。', [-.25, 1.73, .6], [1.45, -.5, 5.35]);
+  const charge = part('charge', '钢球研磨介质', rubberLined ? '照片中筒底的圆球是钢制研磨介质，黑色筒壁是橡胶衬板。提升条带起球荷，钢球抛落或沿料层滚落，冲击和磨细矿粒。显示的球数、粒径与动画速度为示意。' : '1# 的钢球与钢衬板是两个独立部件。不同粒径的钢球通过冲击和摩擦使矿粒变细；显示的球数、粒径与动画速度为示意。', [-.25, 1.73, .6], [1.45, -.5, 5.35]);
   const DRUM_SPEED = .16;
-  const INNER_RADIUS = 1.012;
-  const INNER_HALF_LENGTH = 2.1;
+  const INNER_RADIUS = rubberLined ? .947 : 1.012;
+  const INNER_HALF_LENGTH = rubberLined ? 1.955 + endOffset : 2.1;
   const ballGeo = new THREE.SphereGeometry(1, 14, 10);
   const ballCount = 175;
   const balls = new THREE.InstancedMesh(ballGeo, M.steelBright, ballCount);
@@ -211,7 +260,7 @@ export function createBallMill() {
   const random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
   for (let i = 0; i < ballCount; i++) {
     const r = .078 + random() * .058;
-    const x = -1.92 + random() * 3.84;
+    const x = (random() * 2 - 1) * (rubberLined ? INNER_HALF_LENGTH - .145 : 1.92);
     const z = (random() - .5) * 1.25;
     const y = CY - Math.sqrt((.96 - r) ** 2 - z * z) + random() * .22;
     // These are explanatory paths, not a contact/DEM simulation. The lifted
@@ -255,7 +304,7 @@ export function createBallMill() {
     wobble: random() * Math.PI * 2,
     radius: .038 + random() * .017,
   }));
-  const slurryRadius = .98, slurryLevel = -.22;
+  const slurryRadius = Math.min(.98, INNER_RADIUS - .014), slurryLevel = -.22;
   const slurryShape = new THREE.Shape();
   const rightAngle = Math.asin(slurryLevel / slurryRadius);
   const leftAngle = -Math.PI - rightAngle;
@@ -267,9 +316,10 @@ export function createBallMill() {
   slurryShape.closePath();
   const slurryMaterial = new THREE.MeshStandardMaterial({ color: 0x439a94, emissive: 0x123d3c, emissiveIntensity: .15,
     metalness: .12, roughness: .28, transparent: true, opacity: .18, depthWrite: false, side: THREE.DoubleSide });
-  const slurry = new THREE.Mesh(new THREE.ExtrudeGeometry(slurryShape, { depth: 3.96, bevelEnabled: false, steps: 1 }), slurryMaterial);
+  const slurryLength = rubberLined ? 2 * (INNER_HALF_LENGTH - .03) : 3.96;
+  const slurry = new THREE.Mesh(new THREE.ExtrudeGeometry(slurryShape, { depth: slurryLength, bevelEnabled: false, steps: 1 }), slurryMaterial);
   slurry.name = 'ball-mill-slurry';
-  slurry.position.set(-1.98, CY, 0);
+  slurry.position.set(-slurryLength / 2, CY, 0);
   slurry.rotation.y = Math.PI / 2;
   slurry.userData.labelObstacle = false;
   slurry.raycast = noRaycast;
@@ -281,7 +331,7 @@ export function createBallMill() {
   for (const x of [-1.26, 0, 1.26]) {
     const arrow = new THREE.Group();
     arrow.name = 'ball-mill-flow-arrow';
-    arrow.position.set(x, CY + .025, .67);
+    arrow.position.set(x * lengthRatio, CY + .025, .67);
     arrow.userData.labelObstacle = false;
     const shaft = new THREE.Mesh(arrowShaftGeometry, arrowMaterial);
     shaft.rotation.z = -Math.PI / 2;
@@ -297,11 +347,11 @@ export function createBallMill() {
   }
   const operationGuide = {
     title: '矿浆如何通过磨机',
-    summary: '左端入料，筒内研磨，右端排料。银色钢球显示提升、抛落与泻落，金色矿粒随青绿色矿浆沿轴向前进。运动与颗粒变化为原理示意，排料结构仍待现场确认。',
+    summary: '左端入料，筒内研磨，右端排料。银色钢球显示提升、抛落与泻落，金色矿粒随青绿色矿浆沿轴向前进。' + (rubberLined ? '本机为橡胶衬板溢流型球磨机。' : '本机为钢衬板格子型球磨机。'),
     steps: [
       { label: '入料', description: '矿石与水经左端中空轴进入筒体；青绿色箭头指向矿浆总体前进方向。', partId: 'trunnions', color: '#79d2c5' },
       { label: '研磨', description: '衬板随筒体提升钢球，一部分钢球抛落冲击矿粒，另一部分沿料层泻落产生研磨；底部球荷持续翻动。', partId: 'charge', color: '#c7d2cd' },
-      { label: '排料', description: '金色矿粒从左向右通过研磨区，粒径逐渐变小，矿浆继续向右端排出并进入后续分级环节。', partId: 'trunnions', color: '#d6af69' },
+      { label: '排料', description: rubberLined ? '料浆达到排矿口高度后，从中空轴溢流排出，进入相应的旋流器分级回路。' : '矿浆经排矿端格子板的孔隙进入排矿通道，送往双螺旋分级机。', partId: 'trunnions', color: '#d6af69' },
     ],
   };
 
@@ -394,9 +444,9 @@ export function createBallMill() {
     // Continuous broad pedestal beneath each trunnion, following the photo.
     box(support, .93, 1.38, 1.18, M.darkTeal, x, 1.08, 0);
     box(support, 1.02, .12, 1.3, M.shell, x, 1.57, 0);
-    cyl(support, .57, .75, M.shell, x, CY, 0);
-    cyl(support, .44, .77, M.dark, x, CY, 0);
-    cyl(support, .352, .79, M.steelBright, x, CY, 0);
+    sector(support, .436, .57, .75, 0, 2 * Math.PI, M.shell, x);
+    sector(support, .35, .44, .77, 0, 2 * Math.PI, M.dark, x);
+    sector(support, .324, .352, .79, 0, 2 * Math.PI, M.steelBright, x);
     box(support, .86, .092, 1.21, M.shellEdge, x, CY - .04, 0);
     for (const xx of [-.32, .32]) for (const zz of [-.49, .49]) {
       cyl(support, .052, .085, M.steelBright, x + xx, CY + .04, zz, 'y', 6);
@@ -418,7 +468,8 @@ export function createBallMill() {
     for (const xx of [-.12, .12]) for (const yy of [-.077, .077]) cyl(support, .017, .027, M.steelBright, x + xx, .72 + yy, .626, 'z', 6);
   }
 
-  const feed = part('trunnions', '两端中空轴与开口', '依据照片表现两端中空轴、法兰及敞口形态。物料由一端进入、从另一端排出；仅凭这张教学模型照片无法确认实际设备采用格子型还是溢流型排料结构。', [-3.56, 2.7, 0], [0, 1.9, 0]);
+  const feed = part('trunnions', rubberLined ? '中空轴与溢流排矿口' : '中空轴与排矿通道',
+    rubberLined ? '设备标示卡确认本机为溢流型。扇形橡胶端衬在中空轴孔周围收口；矿浆经排矿端溢出。孔径、端衬断面和排矿端细节为原理示意。' : '设备标示卡确认 1# 为格子型。矿浆通过排矿端格子孔进入排矿通道；本图以格栅示意通流关系，孔形和数量未经实测。', [-3.56, 2.7, 0], [0, 1.9, 0]);
   for (const side of [-1, 1]) {
     sector(feed, .26, .325, 1.12, 0, Math.PI * 2, M.steel, side * 3.01);
     sector(feed, .257, .377, .09, 0, Math.PI * 2, M.shellEdge, side * 3.56);
@@ -430,6 +481,14 @@ export function createBallMill() {
     mouthMaterial.side = THREE.DoubleSide;
     mesh(feed, flare, mouthMaterial, side * 3.76, CY, 0);
     ring(feed, .506, .028, M.steelBright, side * 3.975, CY, 0);
+  }
+
+  // Only the working barrel is longer on 2#. Slide end assemblies intact;
+  // this keeps the gear teeth, steel balls and supports at their normal size.
+  if (endOffset) {
+    for (const assembly of [gearing, drive, support, feed]) for (const child of assembly.children)
+      child.position.x += (assembly === gearing || assembly === drive ? -1 : Math.sign(child.position.x)) * endOffset;
+    for (const p of parts) if (['gear','drive','bearings','trunnions'].includes(p.id)) p.anchor.x -= endOffset;
   }
 
   // Instance only direct siblings sharing geometry, material and cutaway
@@ -479,6 +538,7 @@ export function createBallMill() {
   }
   const shellPivot = drumPivot(shell);
   const linerPivot = drumPivot(liner);
+  const panelPivot = frontLiner && drumPivot(frontLiner);
   let elapsed = 0;
   let viewMode = 'cutaway';
   function setViewMode(view) {
@@ -490,6 +550,7 @@ export function createBallMill() {
     const angle = viewMode === 'solid' ? elapsed * DRUM_SPEED : 0;
     shellPivot.rotation.x = angle;
     linerPivot.rotation.x = angle;
+    if (panelPivot) panelPivot.rotation.x = angle;
     flowLayer.visible = viewMode === 'cutaway';
   }
   function update(delta) {
@@ -500,6 +561,7 @@ export function createBallMill() {
     if (viewMode === 'solid') {
       shellPivot.rotation.x = gearRotor.rotation.x;
       linerPivot.rotation.x = gearRotor.rotation.x;
+      if (panelPivot) panelPivot.rotation.x = gearRotor.rotation.x;
     }
     for (let i = 0; i < ballCount; i++) {
       const b = ballData[i];
@@ -547,7 +609,8 @@ export function createBallMill() {
       // Reset occurs at the concealed end band, outside the observation window.
       // Smaller downstream tracers illustrate cumulative size reduction.
       const radius = grain.radius * (1 - .46 * progress);
-      dummy.position.set(-2.025 + progress * 4.05,
+      const tracerReach = rubberLined ? INNER_HALF_LENGTH - .06 : 2.025;
+      dummy.position.set((2 * progress - 1) * tracerReach,
         CY + grain.y + .034 * Math.sin(elapsed * 1.3 + grain.wobble),
         grain.z + .025 * Math.sin(elapsed + grain.wobble));
       dummy.rotation.set(elapsed * .8 + grain.wobble, grain.wobble, elapsed * .5);
@@ -563,6 +626,6 @@ export function createBallMill() {
   balls.boundingSphere = new THREE.Sphere(V(0, CY, 0), Math.hypot(INNER_HALF_LENGTH, INNER_RADIUS));
   ore.boundingSphere = balls.boundingSphere.clone();
   group.userData.partIds = parts.map(p => p.id);
-  group.userData.description = '球磨机教学模型照片复建 · 结构与运动原理示意，尺寸待核验';
+  group.userData.description = unit + '# 球磨机 · ' + (rubberLined ? '现场实拍橡胶筒衬、提升条与放射状端衬' : '分块钢衬板') + ' · 结构与运动原理示意';
   return { group, parts, explosionSteps, operationGuide, update, setViewMode };
 }

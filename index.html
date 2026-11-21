@@ -34,6 +34,10 @@
             <section id="slurry-controls" class="slurry-controls" aria-label="工艺路径聚焦" hidden><div class="slurry-control-row"><span class="navigation-label">追踪流向</span><div id="slurry-selector" class="slurry-selector" role="group" aria-label="选择工艺路径"></div></div><p id="slurry-description" aria-live="polite"></p></section>
             <div class="crushing-tools" id="crushing-tools" hidden><div class="crushing-focus" role="group" aria-label="破碎回路聚焦"><button data-crushing-focus="all" class="active">全段</button><button data-crushing-focus="coarse">粗碎给料</button><button data-crushing-focus="screening">预筛分流</button><button data-crushing-focus="closed">细碎闭路</button></div><button id="site-conveyor">1# 胶带机 ↗</button><small>工艺据展板 · 外观据实拍 · 布置示意</small><p id="crushing-caption">±40 mm 预筛分流 · ±10 mm 细碎闭路</p></div>
           </div>
+          <section class="field-controls" id="field-controls" aria-label="现场设备对照" hidden>
+            <div class="field-heading"><div><span class="field-kicker">FIELD EQUIPMENT / 现场设备</span><h3 id="field-heading"></h3></div><div class="field-actions"><button type="button" id="field-liner">观察衬板 ↗</button><button type="button" id="field-data">设备参数 ↗</button></div></div>
+            <div class="mill-units" id="mill-units" role="group" aria-label="选择球磨机机号"></div>
+          </section>
           <div class="scene-workbench">
             <div class="scene-frame"><div id="viewport" role="group" aria-label="可旋转的球磨机三维模型。可使用下方按钮切换视图，使用零件目录查看内部结构。"><div id="hotspots" aria-label="模型零件标注"></div><div class="loading" id="loading"><span class="loading-orbit"></span><span>正在构建设备图谱</span><small>PREPARING YOUR EXPLORATION</small></div></div><div class="view-compass" aria-hidden="true"><svg viewBox="0 0 72 72"><circle cx="36" cy="36" r="27"/><path d="M36 7V17 M36 55V65 M7 36H17 M55 36H65 M36 36L50 24 M36 36L19 29 M36 36V53"/><text x="52" y="23">X</text><text x="13" y="27">Z</text><text x="33" y="62">Y</text></svg></div><div class="plant-hover" id="plant-hover" hidden></div></div>
             <aside class="part-drawer" id="part-drawer" aria-label="零件详情" hidden><div class="drawer-header"><span>INSIDE THE MACHINE</span><button class="icon-button" id="close-parts" aria-label="关闭零件详情">×</button></div><div class="part-content"><div class="part-counter" id="part-counter">01 / 06</div><h3 id="part-title">筒体</h3><p id="part-description"></p><div class="part-list" id="part-list"></div></div></aside>
@@ -69,7 +73,7 @@
           <div class="interaction-hint" id="interaction-hint"><span>↔</span> 拖动旋转 <i></i> 滚轮缩放 <i></i> 点击零件探索</div>
         </div>
       </section>
-      <section class="process-strip" aria-label="浮选工艺设备导航"><div class="strip-heading"><span>THE FLOTATION JOURNEY</span><span>浮选工艺 <b>·</b> 从原矿到金精矿</span><button id="flow-toggle">查看工艺全景 <span>↗</span></button></div><div class="equipment-rail" id="equipment-rail"></div><div class="circuit-note"><span><i class="gold-dot"></i>三段一闭路破碎 · 阶段磨矿阶段选别 · 中矿再磨再选</span><span>已接入 8 张现场资料 / 型号差异待核对</span></div></section>
+      <section class="process-strip" aria-label="浮选工艺设备导航"><div class="strip-heading"><span>THE FLOTATION JOURNEY</span><span>浮选工艺 <b>·</b> 从原矿到金精矿</span><button id="flow-toggle">查看工艺全景 <span>↗</span></button></div><div class="equipment-rail" id="equipment-rail"></div><div class="circuit-note"><span><i class="gold-dot"></i>三段一闭路破碎 · 阶段磨矿阶段选别 · 中矿再磨再选</span><span>现场核对 / 流程图、设备标识卡与实拍</span></div></section>
     </main>
     <footer><span>长安金矿 <b>·</b><i>探索，源于理解。</i></span><button id="about-button">关于这份图谱 <span>↗</span></button><span class="footer-right">BUILT TO REVEAL. <em>DESIGNED TO UNDERSTAND.</em></span></footer>
   </div>

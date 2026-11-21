@@ -11,13 +11,18 @@ import { createAuxiliary, AUXILIARY_EQUIPMENT } from './models/auxiliary.js';
 import { createPlantScene } from './plant-scene.js';
 import { PLANT_NODES, PLANT_EDGES, PLANT_STAGES, PLANT_METRICS, REFERENCE_NOTES } from './plant-flow.js';
 import { createSiteJawCrusher, createSiteScreen, createSiteConveyor } from './models/crushing-site.js';
-import { SITE_REFERENCES, BOARD_REFERENCES } from './reference-data.js';
+import { SITE_REFERENCES, BOARD_REFERENCES, LINER_REFERENCES } from './reference-data.js';
+import { FIELD_EQUIPMENT } from './field-specs.js';
 import { PROCESS_CIRCUITS } from './flow-views.js';
 import { FLOW_FOCUS_OPTIONS } from './slurry-flow.js';
 import { PROCESS_TOUR_STEPS, PROCESS_TOUR_CHAPTERS, createProcessTour } from './process-tour.js';
 import { RESEARCH_DATE, TECHNICAL_SOURCES, CIRCUIT_GUIDES, TECHNICAL_DIFFERENCES } from './technology-data.js';
 const EQUIPMENT = [...CORE_EQUIPMENT, ...AUXILIARY_EQUIPMENT, ...SITE_EQUIPMENT];
 const NODE_BY_ID = new Map(PLANT_NODES.map(node => [node.id, node]));
+const millsByUnit = Object.entries(FIELD_EQUIPMENT).filter(([,card])=>card.unit).sort((a,b)=>a[1].unit-b[1].unit);
+const linerLabel = card => card.liner==='rubber'?'橡胶衬板':'钢衬板';
+const fieldName = (id,card) => card.unit?`${card.unit}# 球磨机`:card.type||NODE_BY_ID.get(id).label;
+let lastMillNodeId=millsByUnit[0][0];
 function equipmentRecord(id, nodeId) {
   const record = EQUIPMENT.find(item => item.id === id);
   return record ? {...record, ...NODE_EQUIPMENT_OVERRIDES[nodeId]} : null;
@@ -122,7 +127,16 @@ function fitShadowCamera(light,holders=[],extraBounds=null){
   shadowCamera.updateProjectionMatrix();light.shadow.updateMatrices(light);light.shadow.needsUpdate=true;
 }
 function updateShadowCoverage(){fitShadowCamera(shadowKey,state.overview?plantModel?.labelObjects?.values():[]);}
-function getModel(id){if(id==='screen'&&state.nodeId==='prescreen')id='prescreen';const map=models;if(!map.has(id)){const model=makers[id]();model.parts.forEach(p=>{p.base=p.root.position.clone();p.root.userData.partId=p.id;});model.group.userData.equipmentId=id;map.set(id,model);}return map.get(id);}
+function getModel(id){
+  if(id==='screen'&&state.nodeId==='prescreen')id='prescreen';
+  const unit=id==='mill'?FIELD_EQUIPMENT[state.nodeId].unit:null, key=unit?`mill:${unit}`:id;
+  if(!models.has(key)){
+    const model=unit?createBallMill({unit}):makers[id]();
+    model.parts.forEach(p=>{p.base=p.root.position.clone();p.root.userData.partId=p.id;});
+    model.group.userData.equipmentId=id;models.set(key,model);
+  }
+  return models.get(key);
+}
 function clearHotspots(){
   labelResizeObserver.disconnect();hotspotLayer.replaceChildren();hotspotItems=[];labelSizeDirty=true;
   labelLeaders=document.createElementNS(labelNS,'svg');labelLeaders.classList.add('label-leaders');labelLeaders.setAttribute('aria-hidden','true');hotspotLayer.append(labelLeaders);
@@ -145,6 +159,7 @@ function partHotspots(){
   if(state.view==='cutaway'&&current.operationGuide){
     const steps=current.operationGuide.steps;
     const ids=operationStep<0?steps.map(step=>step.partId):[steps[operationStep]?.partId];
+    if(state.id==='mill'&&operationStep<0)ids.push('liners');
     parts=current.parts.filter(p=>ids.includes(p.id));
   }
   if(state.view==='exploded'){
@@ -161,12 +176,47 @@ function partHotspots(){
     }
   }
 }
-function selectEquipment(id,initial=false,nodeId=null){leaveTourForNavigation();if(!initial)revealWorkspace();state.overview=false;state.id=id;state.nodeId=nodeId;state.selected=null;$('process-controls').hidden=true;$('stage-selector').hidden=true;$('crushing-tools').hidden=true;document.body.classList.remove('crushing-mode');$('plant-legend').hidden=true;$('node-directory').hidden=true;$('plant-hover').hidden=true;$('back-to-process').hidden=!nodeId&&id!=='conveyor';$('crushing-entry').hidden=false;document.body.classList.remove('process-mode');$('equipment-nav').classList.add('active');$('equipment-nav').setAttribute('aria-current','page');$('process-nav').classList.remove('active');$('process-nav').removeAttribute('aria-current');$('part-drawer').hidden=true;
+function renderFieldControls(){
+  const card=FIELD_EQUIPMENT[state.nodeId],panel=$('field-controls');
+  panel.hidden=!card||state.overview;
+  if(panel.hidden)return;
+  $('field-heading').textContent=card.unit?'按机号对照衬板':fieldName(state.nodeId,card);
+  $('mill-units').hidden=!card.unit;$('field-liner').hidden=!card.unit||!renderer;
+  for(const b of $('mill-units').children)b.setAttribute('aria-pressed',String(b.dataset.millNode===state.nodeId));
+}
+for(const [id,card] of millsByUnit){
+  const b=document.createElement('button');b.type='button';b.dataset.millNode=id;
+  const unit=document.createElement('strong'),liner=document.createElement('span');unit.textContent=`${card.unit}# 球磨机`;liner.textContent=linerLabel(card);b.append(unit,liner);
+  b.onclick=()=>{if(state.nodeId!==id)selectEquipment('mill',false,id,true);};
+  $('mill-units').append(b);
+}
+function selectEquipment(id,initial=false,nodeId=null,compare=false){
+  const assembly=compare&&state.view==='exploded'?{progress:explosion.progress,target:explosion.target,playing:explosion.playing}:null;
+  const previousPart=compare?state.selected:null, previousStep=compare?operationStep:-1;
+  const previousView=compare&&camera?{eye:camera.position.clone(),target:controls.target.clone()}:null;
+  if(id==='mill'){
+    if(!nodeId)nodeId=lastMillNodeId;
+    lastMillNodeId=nodeId;
+    if(state.id!=='mill'&&state.view==='solid')state.view='cutaway';
+  }else if(id==='spiral'&&!nodeId)nodeId='spiral-classifier';
+  leaveTourForNavigation();if(!initial&&!compare)revealWorkspace();state.overview=false;state.id=id;state.nodeId=nodeId;state.selected=null;$('process-controls').hidden=true;$('stage-selector').hidden=true;$('crushing-tools').hidden=true;document.body.classList.remove('crushing-mode');$('plant-legend').hidden=true;$('node-directory').hidden=true;$('plant-hover').hidden=true;$('back-to-process').hidden=!nodeId&&id!=='conveyor';$('crushing-entry').hidden=false;document.body.classList.remove('process-mode');$('equipment-nav').classList.add('active');$('equipment-nav').setAttribute('aria-current','page');$('process-nav').classList.remove('active');$('process-nav').removeAttribute('aria-current');$('part-drawer').hidden=true;
+  renderFieldControls();
   renderEquipmentConnections();
   const d=equipmentRecord(id,nodeId),node=NODE_BY_ID.get(nodeId);$('hero-title').innerHTML='让原理，<br>清晰可见<span>。</span>';$('hero-description').innerHTML='穿过钢铁的表面，走进黄金的旅程。<br>以三维视角，重新认识每一台设备。';$('equipment-number').textContent=d.number;$('equipment-stage').textContent=`${d.stage} / ${stageEn[id]}`;$('equipment-name').textContent=node?.label||d.name.replace('机械搅拌','');$('equipment-model').textContent=node?.model||d.model||'';$('evidence-badge').textContent=d.badge||(id==='screen'?'蓝色外罩参考实拍 · 型号对应待核对':node?'展板节点 · 通用结构示意':id==='mill'?'依据实拍模型重建 · 尺寸示意':'展板工艺 · 通用结构示意');$('equipment-english').textContent=d.enName;$('equipment-summary').textContent=node?.note||summaries[id]||d.description;$('drawing-number').textContent=`FIG. ${d.number} / ${stageEn[id]}`;$('render-state').textContent='实时三维 · 原理示意';$('learn-button').innerHTML='理解它如何工作 <span>↗</span>';$('interaction-hint').innerHTML='<span>↔</span> 拖动旋转 <i></i> 滚轮缩放 <i></i> 点击零件探索';$('flow-toggle').innerHTML='查看工艺全景 <span>↗</span>';viewport.setAttribute('aria-label',`可旋转的${d.name}三维模型。可使用下方按钮切换视图，使用零件目录查看内部结构。`);
   $('back-to-process').textContent=state.plantCircuit?'← 返回所选回路':'← 返回所选工段';
+  const field=FIELD_EQUIPMENT[nodeId];
+  if(field){
+    const name=fieldName(nodeId,field);
+    $('equipment-name').textContent=name;$('equipment-model').textContent=`设备标识卡 · ${field.model}`;
+    $('evidence-badge').textContent=field.unit?`${field.type} · ${linerLabel(field)}`:'设备标识卡已核对';
+    viewport.setAttribute('aria-label',`可旋转的${name}三维模型${field.unit?'，'+linerLabel(field):''}。可在零件目录中查看结构。`);
+  }
   document.querySelectorAll('.equipment-card').forEach(b=>{const active=b.dataset.equipment===id;b.classList.toggle('active',active);b.setAttribute('aria-pressed',String(active));});
   if(!renderer)return;stage.clear();current=getModel(id);stage.add(current.group);stage.visible=true;processGroup.visible=false;baseRing.visible=true;grid.scale.setScalar(1);scene.fog.density=.014;outline.visible=false;controls.minDistance=6;controls.maxDistance=30;updateShadowCoverage();applyView(state.view,initial);partHotspots();resetCamera(initial);resize();
+  if(assembly){seekExplosion(assembly.progress,true);explosion.target=assembly.target;explosion.playing=assembly.playing;updatePlay();}
+  if(previousView){cameraTween=false;camera.position.copy(previousView.eye);controls.target.copy(previousView.target);controls.update();}
+  if(previousStep>=0&&state.view==='cutaway')setOperationStep(previousStep);
+  if(previousPart)selectPart(previousPart,false);
 }
 function applyView(view,immediate=false){
   state.view=view;
@@ -383,7 +433,7 @@ function resetCamera(immediate=false){
   cameraTween=true;
   if(immediate||reduceMotion){camera.position.copy(cameraGoal);controls.target.copy(targetGoal);cameraTween=false;controls.update();}
 }
-function selectPart(id){if(state.view==='exploded'&&!state.overview){explosion.playing=false;explosion.target=explosion.progress;updatePlay();}const restoreFocus=$('part-list').contains(document.activeElement);if(!current||state.overview)return;const p=current.parts.find(x=>x.id===id);if(!p)return;state.selected=id;const i=current.parts.indexOf(p);$('part-title').textContent=p.name;$('part-counter').textContent=`${String(i+1).padStart(2,'0')} / ${String(current.parts.length).padStart(2,'0')}`;$('part-description').textContent=equipmentRecord(state.id,state.nodeId).partDescriptions?.[id]||p.description;$('part-list').replaceChildren();current.parts.forEach((part,n)=>{const b=document.createElement('button');b.className=part.id===id?'selected':'';b.innerHTML=`<span class="part-name">${part.name}</span><span>${String(n+1).padStart(2,'0')} ↗</span>`;b.onclick=()=>selectPart(part.id);$('part-list').append(b);});$('part-drawer').hidden=false;$('part-drawer').querySelector('.part-content').scrollTop=0;$('part-drawer').scrollIntoView({block:'nearest',behavior:reduceMotion?'instant':'smooth'});if(restoreFocus)$('part-list').querySelector('.selected')?.focus({preventScroll:true});for(const h of hotspotItems)h.button.classList.toggle('selected',h.button.textContent.includes(p.name));outline.box.setFromObject(p.root);outline.visible=true;}
+function selectPart(id,scrollToPart=true){if(state.view==='exploded'&&!state.overview){explosion.playing=false;explosion.target=explosion.progress;updatePlay();}const restoreFocus=$('part-list').contains(document.activeElement);if(!current||state.overview)return;const p=current.parts.find(x=>x.id===id);if(!p)return;state.selected=id;const i=current.parts.indexOf(p);$('part-title').textContent=p.name;$('part-counter').textContent=`${String(i+1).padStart(2,'0')} / ${String(current.parts.length).padStart(2,'0')}`;$('part-description').textContent=equipmentRecord(state.id,state.nodeId).partDescriptions?.[id]||p.description;$('part-list').replaceChildren();current.parts.forEach((part,n)=>{const b=document.createElement('button');b.className=part.id===id?'selected':'';b.innerHTML=`<span class="part-name">${part.name}</span><span>${String(n+1).padStart(2,'0')} ↗</span>`;b.onclick=()=>selectPart(part.id);$('part-list').append(b);});$('part-drawer').hidden=false;$('part-drawer').querySelector('.part-content').scrollTop=0;if(scrollToPart)$('part-drawer').scrollIntoView({block:'nearest',behavior:reduceMotion?'instant':'smooth'});if(restoreFocus)$('part-list').querySelector('.selected')?.focus({preventScroll:true});for(const h of hotspotItems)h.button.classList.toggle('selected',h.button.textContent.includes(p.name));outline.box.setFromObject(p.root);outline.visible=true;}
 function closeParts(){const restoreFocus=$('part-drawer').contains(document.activeElement);$('part-drawer').hidden=true;if(restoreFocus)$('parts-button').focus({preventScroll:true});state.selected=null;if(outline)outline.visible=false;for(const h of hotspotItems)h.button.classList.remove('selected');}
 function selectPlantNode(id){
   const node=NODE_BY_ID.get(id);if(!node)return;
@@ -394,7 +444,7 @@ function revealWorkspace(){const behavior=reduceMotion?'instant':'smooth';if(mat
 function enterProcess(){
   leaveTourForNavigation();revealWorkspace();
   if(!renderer){showManual('process');return;}
-  closeParts();state.overview=true;$('operation-panel').hidden=true;$('equipment-connections').hidden=true;explosion.playing=false;if(explosion.guides)explosion.guides.group.visible=false;$('explosion-panel').hidden=true;document.body.classList.remove('exploded-mode');updatePlay();document.body.classList.add('process-mode');
+  closeParts();state.overview=true;$('field-controls').hidden=true;$('operation-panel').hidden=true;$('equipment-connections').hidden=true;explosion.playing=false;if(explosion.guides)explosion.guides.group.visible=false;$('explosion-panel').hidden=true;document.body.classList.remove('exploded-mode');updatePlay();document.body.classList.add('process-mode');
   $('equipment-nav').classList.remove('active');$('equipment-nav').removeAttribute('aria-current');
   $('process-nav').classList.add('active');$('process-nav').setAttribute('aria-current','page');
   $('hero-title').innerHTML='循着矿流，<br>看见全程<span>。</span>';
@@ -691,24 +741,34 @@ function nodeLinks(node){
   });
   return `<h3>在生产流程中的位置</h3><div class="connections">${rows.join('')}</div>`;
 }
-function showManual(which=state.overview?'process':state.id){
+function fieldCardLinks(active=null){
+  return `<div class="field-card-links" role="group" aria-label="选择设备标示卡">${Object.entries(FIELD_EQUIPMENT).map(([id,card])=>`<button type="button" data-field-card="${id}" aria-pressed="${id===active}">${fieldName(id,card)}</button>`).join('')}</div>`;
+}
+function fieldCardData(id,card){
+  return `<dl class="field-rows">${card.rows.map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl><p class="caption-note">来源：现场设备标示卡 · ${card.sourceId}。标示值不代表实时工况。</p>`;
+}
+function showManual(which=state.overview?'process':state.id,fieldId=state.nodeId){
   if(processTour.snapshot.active)pauseProcessTour('已暂停 · 阅读资料');
   const container=$('dialog-content'),dialog=$('info-dialog');dialog.classList.toggle('wide-dialog',['references','directory','technology'].includes(which));
-  if(which==='technology'){
+  if(which==='field'){
+    const card=FIELD_EQUIPMENT[fieldId];if(!card)return;
+    container.innerHTML=`<div class="en">EQUIPMENT RECORD / 设备标示卡</div><h2>${fieldName(fieldId,card)}</h2>${fieldCardLinks(fieldId)}<h3>${card.model}${card.unit?' · '+card.type+' · '+linerLabel(card):''}</h3><p class="about-note">${card.note}</p>${fieldCardData(fieldId,card)}<button type="button" class="technical-inline-link" data-open-node="${fieldId}">查看这台设备的三维模型 ↗</button>`;
+  }else if(which==='technology'){
     container.innerHTML=`<div class="en">TECHNICAL NOTES / ${RESEARCH_DATE}</div><h2>读懂长安的阶段磨浮。</h2><p>公开工程案例与政府公示报告印证了阶段磨浮、中矿再磨的总体路线。设备型号、台数组别及逐条连接继续依据你们提供的现场展板。</p><div class="technology-principle"><span>为什么分段、分流处理？</span><p>让已具备回收条件的矿物先进入选别，再对需要进一步解离的物料磨矿。中矿另行再磨，兼顾解离需求与过磨、泥化风险。“分速”指矿物浮选速度的差异；动画速度不表示实际流速。</p><a href="https://patents.google.com/patent/CN102284369B/zh" target="_blank" rel="noopener noreferrer">通用原理：原始专利说明书 ↗</a></div><div class="technology-circuits">${PROCESS_CIRCUITS.map((c,i)=>`<button data-open-circuit="${c.id}"><span>0${i+1}</span><strong>${c.title}</strong><small>进入三维回路 ↗</small></button>`).join('')}</div><h3>公开资料与适用范围</h3><div class="technical-sources">${TECHNICAL_SOURCES.map(s=>`<article><div class="source-meta">${s.publisher} · 发布 ${s.date}</div><h4><a href="${s.url}" target="_blank" rel="noopener noreferrer">${s.title} ↗</a></h4><span class="source-period">${s.period}</span><p>${s.finding}</p><small>${s.limit}</small></article>`).join('')}</div><h3>保留的版本差异</h3><dl class="technical-differences">${TECHNICAL_DIFFERENCES.map(([label,note])=>`<div><dt>${label}</dt><dd>${note}</dd></div>`).join('')}</dl><p class="caption-note">资料检索截至 ${RESEARCH_DATE}。摘要保存在本地，查看外部原文需要联网。三维模型为原理示意，展板指标不是实时数据。</p>`;
   }else if(which==='references'){
     const gallery=items=>`<div class="reference-gallery">${items.map(item=>`<a href="${item.url}" target="_blank" rel="noopener noreferrer"><img loading="lazy" src="${item.url}" alt="${item.title}"><span>${item.title} ↗</span><small>${item.note}</small></a>`).join('')}</div>`;
-    container.innerHTML=`<div class="en">FIELD REFERENCES / LOCAL ARCHIVE</div><h2>让每一处还原，有据可查。</h2><p>八张资料保存在本地。工艺连接按原流程图；设备外观按实拍更新，未拍到的内部和未确认的设备对应保留说明。</p><h3>2026.10.21 / 破碎工段实拍</h3>${gallery(SITE_REFERENCES)}<h3>2026.10.12 / 工艺展板与教学模型</h3>${gallery(BOARD_REFERENCES)}<h3>核对记录</h3><ul class="reference-notes">${REFERENCE_NOTES.map(n=>`<li>${n}</li>`).join('')}</ul>`;
+    container.innerHTML=`<div class="en">FIELD REFERENCES / LOCAL ARCHIVE</div><h2>让每一处还原，有据可查。</h2><p>工艺连线依据流程图，设备参数逐台摘录自现场标示卡。衬板材质由矿方确认：1# 为钢衬板，2# 和 3# 为橡胶衬板。</p><h3>2026.11.19 / 球磨机与螺旋分级机设备卡</h3>${fieldCardLinks()}<h3>橡胶衬板实拍</h3>${gallery(LINER_REFERENCES)}<h3>2026.10.21 / 破碎工段实拍</h3>${gallery(SITE_REFERENCES)}<h3>2026.10.12 / 工艺展板与教学模型</h3>${gallery(BOARD_REFERENCES)}<h3>核对记录</h3><ul class="reference-notes">${REFERENCE_NOTES.map(n=>`<li>${n}</li>`).join('')}</ul>`;
   }else if(which==='directory'){
     container.innerHTML=`<div class="en">PLANT INDEX / ${PLANT_NODES.length} NODES</div><h2>设备与作业目录</h2><p>点击节点进入三维内部。重复作业使用同类原理模型，具体台数与结构未从照片推定。</p>${PLANT_STAGES.map(s=>`<h3>${s.name}</h3><div class="node-index">${PLANT_NODES.filter(n=>n.stage===s.id).map(n=>`<button data-open-node="${n.id}"><strong>${n.label}</strong><span>${n.model}</span><i>↗</i></button>`).join('')}</div>`).join('')}`;
   }else if(which==='about'){
-    container.innerHTML=`<div class="en">长安金矿 / FIELD EDITION 004</div><h2>让现场资料，<br>变成可以探索的世界。</h2><p>本版已接入八张现场资料，按新实拍更新 CC300、颚破、筛箱和胶带机，并加入破碎工段专属场景。展开 ${PLANT_NODES.length} 个流程节点，可以逐段查看内部结构。</p><p class="about-note">工艺节点和型号来自展板；CC300 铭牌已由实拍确认。颚破、筛分外罩与胶带机按现场外观表达，具体节点对应仍待核对；内部结构采用教学模型和通用原理。空间布置与尺寸仍为示意，尚未取得制造图或现场测绘数据。</p><div class="roadmap"><div><span>01 / REFERENCES</span><h3>有据可查</h3><p>八张参考照片本地保存<br>型号差异与暂定回流单独标注</p></div><div><span>02 / EXPLORE</span><h3>逐段理解</h3><p>六个工段 · 可交互的内部结构<br>36 个设备与作业节点</p></div><div><span>03 / NEXT</span><h3>按现场校准</h3><p>结合总装图和实测尺寸<br>补齐特定型号内部结构</p></div></div>`;
+    container.innerHTML=`<div class="en">长安金矿 / FIELD ATLAS</div><h2>让现场资料，<br>变成可以探索的世界。</h2><p>沿 ${PLANT_NODES.length} 个节点查看各设备如何配合。从磨矿工段进入三台球磨机，可以对照标示卡参数，并在剖视与拆解中辨认钢衬板和橡胶衬板。</p><p class="about-note">工艺流向按现场展板还原；结构与材质综合教学模型、现场实拍和矿方核对结果。未实测的零件尺寸、数量与厂房布置仍为示意。</p><h3>第一次使用</h3><p>“工艺全景”可逐段跟随物料流动；“设备探索”可查看单机；“现场资料”收录设备标示卡摘录与实拍图像。</p>`;
   }else if(which==='process'){
     container.innerHTML=`<div class="en">STAGED GRINDING & FLOTATION</div><h2>从一条线，到完整回路。</h2><p>${PROCESS_NOTE}</p><div class="plant-metrics">${PLANT_METRICS.map(m=>`<div><span>${m.label}</span><strong>${m.value}</strong><small>${m.source}</small></div>`).join('')}</div><ol>${PLANT_STAGES.map(s=>`<li><strong>${s.name}</strong><br>${s.summary}</li>`).join('')}</ol><h3>如何读取三维流程</h3><p>米金色表示物料主线，金色表示精矿，青绿表示返砂或中矿回流，灰绿表示尾矿，蓝色表示回水。虚线表示照片中交叉密集、仍待核对的暂定连接。</p><h3>需要核对的连接</h3><ul class="reference-notes">${PLANT_EDGES.filter(e=>e.uncertain).map(e=>`<li>${NODE_BY_ID.get(e.from).label} → ${NODE_BY_ID.get(e.to).label}：${e.label}</li>`).join('')}</ul><p class="about-note">36 个节点包括单台设备和作业机组；三台斜板浓密机合成一个机组节点。布局用于读懂工艺，不代表厂房坐标。</p>${sourceLinks([{title:'查看原始流程图',url:'./references/reference-01.jpg'},{title:'查看原始工艺简介',url:'./references/reference-02.jpg'}])}`;
   }else{
     const d=equipmentRecord(which,state.nodeId),node=NODE_BY_ID.get(state.nodeId);if(!d)return;
     container.innerHTML=`<div class="en">${d.number} / ${d.enName}</div><h2>${node?.label||d.name}</h2><div class="model-pill">${node?.model||d.model||'原理示意'}</div>${node?`<p class="about-note">${node.note}</p>`:''}<p>${d.description}</p><h3>工作原理</h3><p>${d.principle}</p><div class="flow-io"><div><span>INPUT / 给料</span><strong>${d.input}</strong></div><div><span>OUTPUT / 产物</span><strong>${d.output}</strong></div></div>${node?nodeLinks(node):''}<h3>三个观察时刻</h3><ol>${d.steps.map(s=>`<li>${s}</li>`).join('')}</ol><h3>观察重点</h3><p>${d.focus.join('　 / 　')}</p><p class="about-note">${d.evidence||'设备结构与运动为原理示意，尺寸未按制造图校准。'}</p><h3>资料依据</h3>${sourceLinks(d.sources)}<p class="caption-note">展板指标不是实时数据。图中钢球、矿粒与气泡的运动用于教学，不代表精确动力学。</p>`;
   }
+  if(which===state.id&&!state.overview&&FIELD_EQUIPMENT[state.nodeId])container.querySelector('.model-pill')?.insertAdjacentHTML('afterend',`<button type="button" class="technical-inline-link" data-field-card="${state.nodeId}">查看本机设备参数 ↗</button>`);
   if(['process','references'].includes(which))container.insertAdjacentHTML('afterbegin','<button class="technical-inline-link" data-open-technology>新增：公开技术资料与版本核对 ↗</button>');
   if(!dialog.open)dialog.showModal();container.scrollTop=0;
 }
@@ -728,6 +788,8 @@ for(const [index,step]of PROCESS_TOUR_STEPS.entries()){
 }
 
 // Every visible control has a corresponding stateful operation.
+$('field-data').onclick=()=>showManual('field');
+$('field-liner').onclick=()=>{if(state.view!=='cutaway')applyView('cutaway');selectPart('liners');};
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>applyView(b.dataset.view));
 $('play-button').onclick=()=>{
   if(processTour.snapshot.active){toggleProcessTour();return;}
@@ -762,6 +824,7 @@ document.querySelectorAll('[data-crushing-focus]').forEach(b=>b.onclick=()=>{pla
 $('flow-toggle').onclick=()=>state.overview?selectEquipment(state.id,false,state.nodeId):enterProcess();
 $('reference-nav').onclick=()=>showManual('references');$('reference-button').onclick=()=>showManual('references');$('node-directory').onclick=()=>showManual('directory');$('back-to-process').onclick=enterProcess;
 $('dialog-content').addEventListener('click',event=>{
+  const record=event.target.closest('[data-field-card]');if(record){const id=record.dataset.fieldCard;showManual('field',id);$('dialog-content').querySelector(`[data-field-card="${id}"]`)?.focus({preventScroll:true});return;}
   const button=event.target.closest('[data-open-node]');if(button)selectPlantNode(button.dataset.openNode);
   const circuit=event.target.closest('[data-open-circuit]');if(circuit){$('info-dialog').close();state.plantCircuit=circuit.dataset.openCircuit;enterProcess();}
   if(event.target.closest('[data-open-technology]'))showManual('technology');

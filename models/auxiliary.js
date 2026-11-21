@@ -41,15 +41,59 @@ export function createAuxiliary(type){
     for(const x of[-1.8,1.8])for(const z of[-1.4,1.4]){tube(drive,.14,.4,'gold',x,.9,z);}
     rotor=tube(drive,.4,.8,'teal',0,1.65,1.7,'z');tube(drive,.13,.9,'steel',0,1.65,1.7,'z');
   }else if(type==='spiral'){
-    feet(body,2.2,1);box(body,5.4,.18,2.6,'teal',0,1.1,0);box(body,5.4,.9,.12,'teal',0,1.6,-1.3);box(body,5.4,.9,.12,'teal',0,1.6,1.3,true);box(body,.15,.9,2.6,'teal',-2.7,1.6,0);
+    // Working diameter and length follow the 2FG-2000 card. The illustrated 16°
+    // lies inside its 14–18.5° range; pitch and support details are schematic.
+    const scale=.0006,inclineAngle=THREE.MathUtils.degToRad(16),axisY=1.88;
+    const flightR=2000*scale/2,flightLen=8200*scale,troughLen=5.64,troughWidth=2.544;
+    const inclinedPart=(owner)=>{const g=new THREE.Group();g.position.y=axisY;g.rotation.z=inclineAngle;owner.add(g);return g;};
+    const trough=inclinedPart(body),driveFrame=inclinedPart(drive);
+    box(trough,troughLen,.14,troughWidth,'teal',0,-.70,0);
+    for(const side of [-1,1]){
+      const z=side*troughWidth/2,front=side>0;
+      box(trough,troughLen,1.29,.09,'teal',0,-.015,z,front);
+      box(trough,troughLen,.065,.14,'dark',0,.64,z,front);
+      for(let rib=0;rib<6;rib++)box(trough,.055,1.24,.05,'teal',(rib-2.5)*1.03,-.02,z+side*.06,front);
+    }
+    box(trough,.10,1.1,troughWidth,'teal',-troughLen/2,-.1,0);
+    for(const x of [-2.15,1.9])for(const z of [-1,1]){
+      const h=axisY+x*Math.tan(inclineAngle)-.77/Math.cos(inclineAngle);
+      box(body,.16,h,.16,'dark',x,h/2,z);box(body,.43,.10,.38,'steel',x,.05,z);
+    }
+    const flightGeometry=hand=>{
+      const vs=[],ix=[],segments=224,turns=6;
+      for(let i=0;i<=segments;i++){
+        const t=i/segments,a=t*turns*Math.PI*2*hand,x=(t-.5)*flightLen;
+        for(const [offset,r] of [[-.026,.115],[-.026,flightR],[.026,flightR],[.026,.115]]){
+          vs.push(x+offset,Math.sin(a)*r,Math.cos(a)*r);
+        }
+        if(!i)continue;
+        for(let j=0;j<4;j++){
+          const p=(i-1)*4+j,q=(i-1)*4+(j+1)%4;
+          if(hand>0)ix.push(p,q,p+4,q,q+4,p+4);else ix.push(p,p+4,q,q,p+4,q+4);
+        }
+      }
+      const end=segments*4;
+      if(hand>0)ix.push(0,2,1,0,3,2,end,end+1,end+2,end,end+2,end+3);
+      else ix.push(0,1,2,0,2,3,end,end+2,end+1,end,end+3,end+2);
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(vs,3));g.setIndex(ix);g.computeVertexNormals();return g;
+    };
     const rotorSet=[];
-    for(const z of[-.62,.62]){
-      // A fixed inclined support keeps the spin axis steady in world space.
-      const incline=new THREE.Group();inner.add(incline);incline.position.set(0,1.6,z);incline.rotation.z=.08;
-      const rotating=new THREE.Group();incline.add(rotating);tube(rotating,.105,5.4,'steel',0,0,0,'x');
-      const points=[];for(let i=0;i<=200;i++){const t=i/200,a=t*Math.PI*18;points.push(new THREE.Vector3((t-.5)*5,Math.sin(a)*.46,Math.cos(a)*.46));}mesh(rotating,new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points),240,.085,5,false),'gold');rotorSet.push(rotating);
-      const motor=tube(drive,.24,.7,'teal',2.8,1.6+Math.tan(.08)*2.8,z,'x');motor.rotation.z+=.08;box(drive,.9,.12,.7,'dark',2.7,1.5,z);
-    }[rotor,rotor2]=rotorSet;surface=box(inner,4.2,.035,2.3,'water',-.4,1.48,0);
+    const screwFrame=inclinedPart(inner);
+    for(const hand of[1,-1]){
+      const z=-hand*.625,rotating=new THREE.Group();rotating.position.z=z;screwFrame.add(rotating);
+      rotating.name=hand>0?'左侧螺旋':'右侧螺旋';
+      tube(rotating,.12,5.55,'steel',0,0,0,'x');mesh(rotating,flightGeometry(hand),'steel');
+      rotorSet.push(rotating);
+      box(driveFrame,.42,.46,.5,'dark',2.83,0,z);
+      tube(driveFrame,.23,.59,'teal',3.29,0,z,'x');
+      for(let i=0;i<4;i++)tube(driveFrame,.245,.033,'dark',3.12+i*.09,0,z,'x');
+      box(driveFrame,1.03,.12,.58,'dark',3.09,-.29,z);
+    }
+    [rotor,rotor2]=rotorSet;
+    surface=box(inner,3.26,.025,2.42,'water',-.84,1.45,0);
+    parts[0].description='长槽倾斜布置。设备卡标注槽体倾角为 14°～18.5°，模型取 16° 示意；低端收集溢流，高端排出返砂。';
+    parts[1].description='两根螺旋的直径为 2000 mm、长度为 8200 mm，卡示转速为 5.6 r/min。两侧叶片旋向相反，推动沉砂向同一高端移动。叶片螺距为示意。';
+    parts[2].anchor.set(3.02,2.7,.6);
   }else if(type==='hopper'){
     feet(body,1.65,1.65,2.4);
     // An open four-sided rim accepts feed; long legs meet the upper bin walls.
@@ -80,7 +124,7 @@ export function createAuxiliary(type){
       box(drive,3.65,.2,.6,'steel',0,3.3,0);tube(drive,.45,.7,'teal',0,3.8,0);tube(drive,.2,1.2,'teal',-1.9,2.8,-.4,'x');
     }
   }
-  return{group,parts,update(delta,time){if(rotor){if(type==='spiral'){rotor.rotation.x=time*.3;rotor2.rotation.x=-time*.3;}else if(type==='screen')rotor.rotation.y=time*2;else rotor.rotation.y=time*.6;}}};
+  return{group,parts,update(delta,time){if(rotor){if(type==='spiral'){const angle=time*(5.6/60)*Math.PI*2;rotor.rotation.x=angle;rotor2.rotation.x=-angle;}else if(type==='screen')rotor.rotation.y=time*2;else rotor.rotation.y=time*.6;}}};
 }
 
 // Shared resources keep repeated process symbols cheap. Symbols describe an
