@@ -85,7 +85,8 @@ function init(){
   [5.5,5.6,6.8].forEach((r,i)=>{const points=Array.from({length:181},(_,n)=>new THREE.Vector3(Math.cos(n/180*Math.PI*2)*r,0,Math.sin(n/180*Math.PI*2)*r));const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:i===1?0x547063:0x8c875b,transparent:true,opacity:i===1?.14:.24}));baseRing.add(line);});
   const tickPts=[];for(let i=0;i<96;i++){const a=i/96*Math.PI*2,r=6.8;tickPts.push(new THREE.Vector3(Math.cos(a)*r,.01,Math.sin(a)*r),new THREE.Vector3(Math.cos(a)*(r+(i%8===0?.19:.08)),.01,Math.sin(a)*(r+(i%8===0?.19:.08))));}baseRing.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(tickPts),new THREE.LineBasicMaterial({color:0xb9a679,transparent:true,opacity:.25})));
   outline=new THREE.Box3Helper(new THREE.Box3(),0xd1b37c);outline.material.transparent=true;outline.material.opacity=.25;outline.visible=false;scene.add(outline);
-  new ResizeObserver(resize).observe(viewport);resize();selectEquipment('cone',true);
+  new ResizeObserver(resize).observe(viewport);resize();
+  if(location.hash!=='#mill-exterior')selectEquipment('cone',true);
   renderer.domElement.addEventListener('pointerdown',e=>lastPointer={x:e.clientX,y:e.clientY});
   renderer.domElement.addEventListener('pointerup',e=>{if(Math.hypot(e.clientX-lastPointer.x,e.clientY-lastPointer.y)>5)return;const hit=pick(e);if(!hit)return;if(state.overview){const id=ancestorValue(hit.object,'nodeId');if(id)selectPlantNode(id);}else{const id=ancestorValue(hit.object,'partId');if(id)selectPart(id);}});
   renderer.domElement.addEventListener('pointermove',e=>{const hit=pick(e);renderer.domElement.style.cursor=hit?'pointer':'grab';
@@ -154,7 +155,7 @@ function makeHotspot(label,num,callback,position,type='part'){
 }
 function partHotspots(){
   clearHotspots();if(!current)return;
-  const favored={mill:['shell','charge','gear']};
+  const favored={mill:['gear-guard','pinion-bearings','bearings']};
   let parts=current.parts.filter(p=>favored[state.id]?.includes(p.id));
   if(state.view==='cutaway'&&current.operationGuide){
     const steps=current.operationGuide.steps;
@@ -180,8 +181,9 @@ function renderFieldControls(){
   const card=FIELD_EQUIPMENT[state.nodeId],panel=$('field-controls');
   panel.hidden=!card||state.overview;
   if(panel.hidden)return;
-  $('field-heading').textContent=card.unit?'按机号对照衬板':fieldName(state.nodeId,card);
+  $('field-heading').textContent=card.unit?'按机号查看球磨机':fieldName(state.nodeId,card);
   $('mill-units').hidden=!card.unit;$('field-liner').hidden=!card.unit||!renderer;
+  $('field-bearing').hidden=!card.unit||!renderer;
   for(const b of $('mill-units').children)b.setAttribute('aria-pressed',String(b.dataset.millNode===state.nodeId));
 }
 for(const [id,card] of millsByUnit){
@@ -427,8 +429,14 @@ function resetCamera(immediate=false){
     if(state.id==='crusher'){cameraGoal.set(8.5,7,14).multiplyScalar(distance);targetGoal.set(.4,2.3,0);}
     if(state.id==='screen'){cameraGoal.set(8.5,7.5,14.5).multiplyScalar(distance);targetGoal.set(0,2.5,0);}
     if(state.id==='conveyor'){cameraGoal.set(7.5,5.8,12.7).multiplyScalar(distance);targetGoal.set(0,1.4,0);}
+    if(state.id==='mill'&&state.view==='solid'){targetGoal.set(-.55,1.65,.30);cameraGoal.set(-5.5,5.05,12.1).multiplyScalar(distance);}
     if(exploded){const envelope=explosionEnvelope(current);if(!envelope.isEmpty()){targetGoal.copy(envelope.getCenter(new THREE.Vector3()));cameraGoal.copy(targetGoal).add(new THREE.Vector3(...(current.explosionCamera||[.52,.27,.85])).normalize().multiplyScalar(12));}}
     controls.maxDistance=Math.max(30,fitEquipmentCamera(current,state.view,camera,cameraGoal,targetGoal)*1.1);
+    if(state.id==='mill'&&state.view==='solid'&&state.selected==='pinion-bearings'){
+      // Look across the drive shaft so that the two stationary housings read as a pair.
+      const p=current.parts.find(item=>item.id==='pinion-bearings');
+      if(p){targetGoal.copy(p.anchor);cameraGoal.copy(targetGoal).add(new THREE.Vector3(-.30,.33,1).normalize().multiplyScalar(mobile?7.5:6.4));}
+    }
   }
   cameraTween=true;
   if(immediate||reduceMotion){camera.position.copy(cameraGoal);controls.target.copy(targetGoal);cameraTween=false;controls.update();}
@@ -790,6 +798,11 @@ for(const [index,step]of PROCESS_TOUR_STEPS.entries()){
 // Every visible control has a corresponding stateful operation.
 $('field-data').onclick=()=>showManual('field');
 $('field-liner').onclick=()=>{if(state.view!=='cutaway')applyView('cutaway');selectPart('liners');};
+$('field-bearing').onclick=()=>{
+  applyView('solid');
+  selectPart('pinion-bearings');
+  resetCamera();
+};
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>applyView(b.dataset.view));
 $('play-button').onclick=()=>{
   if(processTour.snapshot.active){toggleProcessTour();return;}
@@ -812,7 +825,7 @@ $('explosion-range').addEventListener('input',event=>seekExplosion(Number(event.
 $('explosion-expand').onclick=()=>seekExplosion(1);
 $('explosion-collapse').onclick=()=>seekExplosion(0);
 $('explosion-replay').onclick=()=>{if(state.overview||state.view!=='exploded')return;seekExplosion(0,true);explosion.playing=true;updatePlay();};
-$('reset-button').onclick=()=>{resetCamera();toast('已重置观察视角');};
+$('reset-button').onclick=()=>{if(state.id==='mill'&&state.selected==='pinion-bearings')closeParts();resetCamera();toast('已重置观察视角');};
 $('labels-button').onclick=()=>{state.labels=!state.labels;$('labels-button').setAttribute('aria-pressed',String(state.labels));$('labels-button').querySelector('.toggle').classList.toggle('active',state.labels);};
 $('parts-button').onclick=()=>{if(!current)return;if(!$('part-drawer').hidden){closeParts();return;}selectPart(current.parts[0].id);};
 $('close-parts').onclick=closeParts;
@@ -840,3 +853,11 @@ $('fullscreen-button').onclick=async()=>{try{if(document.fullscreenElement)await
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeParts();if(processTour.snapshot.active)pauseProcessTour('已暂停');}});
 window.addEventListener('error',event=>{if(!$('loading').hidden){$('loading').innerHTML='<span>模型加载遇到问题</span><small>请刷新页面重试，或通过原理手册查看设备说明。</small>';}});
 init();
+function openMillExterior(){
+  if(location.hash!=='#mill-exterior')return;
+  selectEquipment('mill',true,'mill-primary');
+  applyView('solid',true);
+  if(renderer)resetCamera(true);
+}
+openMillExterior();
+window.addEventListener('hashchange',openMillExterior);

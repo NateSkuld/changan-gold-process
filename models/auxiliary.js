@@ -141,6 +141,9 @@ export function createPlantSymbol(type, node = null){
         slurry:material(0x506e61,.08,.87), foam:material(0xc7c5a1,.05,.82),
         water:material(0x5cabbc,.12,.35), sediment:material(0x8f7954,.15,.85), media:material(0x8c9b93,.75,.38), standby:material(0x67796f,.3,.7),
         shell:material(0x367b70,.55,.45,{side:THREE.DoubleSide}),
+        millWhite:material(0xe3e1d7,.17,.58), millYellow:material(0xe4ad26,.22,.51),
+        millRed:material(0xa53634,.25,.50), millGrey:material(0x737b7b,.32,.53),
+        millIron:material(0x383b39,.49,.49),
       },
     };
   }
@@ -160,10 +163,31 @@ export function createPlantSymbol(type, node = null){
     for(let i=0;i<count;i++){const p=position(i);matrix.compose(new THREE.Vector3(...p.slice(0,3)),new THREE.Quaternion(),new THREE.Vector3(...(p.slice(3).length===3?p.slice(3):[1,1,1])));mesh.setMatrixAt(i,matrix);}
     mesh.computeBoundingBox();mesh.computeBoundingSphere();owner.add(mesh);return mesh;
   };
-  box(2.7,.16,2,'dark',0,.08,0);
+  const millHalf = type === 'mill' ? 1.07 * (node?.id === 'mill-polishing' ? 4000 / 3600 : 1) : 0;
+  box(millHalf ? 2*(millHalf+.35) : 2.7,.16,2,'dark',0,.08,0);
   if(type==='mill'){
-    const barrel=cyl(.75,.75,2.35,'teal',0,1.2,0);barrel.rotation.z=Math.PI/2;
-    for(const x of[-1.1,1.1]){ring(.79,'gold',x,1.2,0,'x');box(.4,.8,1.2,'steel',x,.5,0);}box(.8,.4,.5,'teal',-.75,.35,1.2);
+    // Use just the silhouettes that read at plant scale. The longer 2# drum
+    // has the same diameter as its neighbours; end supports stay unscaled.
+    const half=millHalf, y=1.15, gearX=-half+.06;
+    name(pipe(.75,2*half,'millWhite',0,y,0,'x'),'白漆筒体');
+    for(const s of [-1,1]){
+      const x=s*(half+.20);
+      pipe(.23,.40,'millWhite',s*(half+.08),y,0,'x');
+      box(.22,.90,.52,'millGrey',x,.61,0);
+      name(pipe(.325,.23,'millWhite',x,y,0,'x'),'主轴承座');
+    }
+    pipe(.83,.15,'millIron',gearX,y,0,'x');
+    name(pipe(.745,.10,'millRed',gearX-.08,y,0,'x'),'红漆齿圈连接环');
+    // One continuous arch with a flat rim at either side of the gear.
+    const arch=cached('mill-upper-guard',()=>new THREE.LatheGeometry(
+      [[.853,-.14],[.923,-.14],[.923,.14],[.853,.14],[.853,-.14]].map(([r,x])=>new THREE.Vector2(r,x)),24,0,Math.PI));
+    name(add(arch,'millYellow',gearX,y,0),'黄色齿轮护罩').rotation.z=Math.PI/2;
+    for(const z of [-.886,.886])box(.28,.69,.08,'millYellow',gearX,y-.344,z);
+    const shaftY=.61, shaftZ=.80;
+    pipe(.072,1.02,'millIron',gearX+.03,shaftY,shaftZ,'x');
+    for(const dx of [-.24,.24])name(box(.15,.40,.29,'millIron',gearX+dx,.46,shaftZ),'小齿轮轴承座');
+    name(pipe(.124,.16,'millRed',gearX+.44,shaftY,shaftZ,'x'),'红漆联轴器');
+    name(pipe(.215,.45,'millGrey',gearX+.72,shaftY,shaftZ,'x'),'传动电机');
   }else if(type==='crusher'){
     box(1.8,1.9,1.5,'teal',0,1.1,0);const jaw=box(.9,.25,1.6,'dark',0,2.1,0);jaw.rotation.z=.2;
     for(const x of[-1.1,1.1]){const w=cyl(.65,.65,.18,'gold',x,1.2,0);w.rotation.z=Math.PI/2;}

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { rubberPanelGeometry } from './rubber-lining.js';
+import { drumPaintFinish } from './mill-paint.js';
+import { buildMillTransmission } from './mill-transmission.js';
 
 /** Ball-mill teaching model based on the supplied photograph; dimensions are illustrative. */
 export function createBallMill(options = {}) {
@@ -15,9 +17,15 @@ export function createBallMill(options = {}) {
   const parts = [];
   const CY = 2.18;
   const M = {
-    shell: new THREE.MeshStandardMaterial({ color: 0x226c67, metalness: .72, roughness: .31 }),
-    shellEdge: new THREE.MeshStandardMaterial({ color: 0x397f75, metalness: .7, roughness: .3 }),
-    darkTeal: new THREE.MeshStandardMaterial({ color: 0x143c3e, metalness: .72, roughness: .35 }),
+    shell: new THREE.MeshStandardMaterial({ name: '灰白面漆', color: 0xd3d2c7, metalness: .16, roughness: .58 }),
+    barrel: new THREE.MeshStandardMaterial({ name: '筒体象牙白漆', color: 0xe1dfd3, map:drumPaintFinish(), metalness:.12, roughness:.60 }),
+    shellEdge: new THREE.MeshStandardMaterial({ name:'白漆法兰', color: 0xbec0b7, metalness: .23, roughness: .52 }),
+    darkTeal: new THREE.MeshStandardMaterial({ name:'铸件灰漆', color: 0x555958, metalness: .28, roughness: .56 }),
+    guardYellow: new THREE.MeshStandardMaterial({ name:'齿罩黄漆', color: 0xcd8c07, metalness:.08, roughness:.55 }),
+    guardEdge: new THREE.MeshStandardMaterial({ name:'护罩黄色卷边', color:0xdb9c17, metalness:.12, roughness:.54 }),
+    guardInside: new THREE.MeshStandardMaterial({ name:'齿罩内壁', color:0x393734, metalness:.30, roughness:.60 }),
+    flangeRed: new THREE.MeshStandardMaterial({ name:'齿圈连接环红漆', color:0xb6332b, metalness:.13, roughness:.53 }),
+    tooth: new THREE.MeshStandardMaterial({ name:'深色齿面', color:0x363533, metalness:.61, roughness:.38 }),
     brass: new THREE.MeshStandardMaterial({ color: 0xb7a16c, metalness: .88, roughness: .3 }),
     brassDark: new THREE.MeshStandardMaterial({ color: 0x80704d, metalness: .87, roughness: .38 }),
     steel: new THREE.MeshStandardMaterial({ color: 0x717d7e, metalness: .88, roughness: .29 }),
@@ -77,11 +85,14 @@ export function createBallMill(options = {}) {
     const cacheKey = `sector:${inner}:${outer}:${length}:${start}:${end}`;
     if (geometryCache.has(cacheKey)) return mesh(root, geometryCache.get(cacheKey), mat, x, yc, zc, cutaway);
     const n = Math.max(3, Math.ceil((end - start) * 24));
-    const positions = [], indices = [];
+    const positions = [], indices = [], uvs = [];
     for (let j = 0; j <= n; j++) {
       const a = start + (end - start) * j / n;
       for (const xx of [-length / 2, length / 2]) {
-        for (const r of [inner, outer]) positions.push(xx, Math.sin(a) * r, Math.cos(a) * r);
+        for (const r of [inner, outer]) {
+          positions.push(xx, Math.sin(a) * r, Math.cos(a) * r);
+          if (mat === M.barrel) uvs.push((x + xx)/4.4 + .5, a/(2*Math.PI));
+        }
       }
     }
     const q = (a, b, c, d) => indices.push(a, c, b, a, d, c);
@@ -96,6 +107,7 @@ export function createBallMill(options = {}) {
     q(n * 4, n * 4 + 2, n * 4 + 3, n * 4 + 1);
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    if (uvs.length) geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
     geometryCache.set(cacheKey, geo);
@@ -119,35 +131,35 @@ export function createBallMill(options = {}) {
   // covers. Bearings stay on the floor as a common assembly datum. The paths
   // illustrate relationships, not a maintenance or lifting procedure.
   const explosionSteps = [
-    { title: '移开传动', description: '齿圈向左、电机组向左前方移开，保留两者与筒体左端的传动关系。', parts: ['gear', 'drive'] },
-    { title: '提起筒体', description: '完整筒体连同端盖上移，外罩保留，露出原本包在里面的结构。', parts: ['shell'] },
+    { title: '分开护罩与传动', description: '移开黄色齿轮护罩，观察红色连接环、深色大齿圈和侧面的小齿轮。对比传动轴与支承它的轴承座。', parts: ['gear-guard', 'gear', 'drive', 'pinion-bearings'] },
+    { title: '提起筒体', description: '白漆筒体与端盖一同上移，露出衬板和钢球。端部法兰与筒壁的螺栓随筒体移动。', parts: ['shell'] },
     { title: '展开筒内', description: rubberLined ? '近侧橡胶筒衬单独移开，露出纵向提升条、两端扇形衬板与独立的钢球层。' : '钢衬板与钢球向前分为两层，分别观察内壁保护层和研磨介质。', parts: rubberLined ? ['liners', 'liner-panel', 'charge'] : ['liners', 'charge'] },
     { title: '对照支承', description: '两端中空轴成组上移，主轴承与基础留在原位作为装配基准。', parts: ['trunnions', 'bearings'] },
   ];
 
-  const shell = part('shell', '筒体、端盖与观察窗', '依据现场提供的教学模型照片，表现筒体两端法兰、成排紧固螺栓与正面矩形观察窗。观察窗用于演示内部结构，不代表生产设备运行时敞开；几何比例为示意，尚未依据总装尺寸校核。', [0, 3.35, .5], [0, 4.05, -.35]);
+  const shell = part('shell', '白漆筒体与端盖', '白漆筒体上的螺栓沿圆周和轴向排列，两端与法兰连接。完整外观显示封闭筒壁；剖视的开口用于观察衬板和钢球，实际运行时筒壁封闭。', [0, 3.35, .5], [0, 4.05, -.35]);
   const windowArcs = [[-Math.PI / 3, Math.PI / 3, true], [Math.PI / 3, Math.PI * 5 / 3, false]];
   for (const [a, b, cut] of windowArcs) {
     if (cut) {
-      sector(shell, 1.14, 1.225, WINDOW_LENGTH, a, b, M.shell, 0, true);
+      sector(shell, 1.14, 1.225, WINDOW_LENGTH, a, b, M.barrel, 0, true);
       for (const side of [-1, 1]) {
-        sector(shell, 1.14, 1.225, (SHELL_LENGTH - WINDOW_LENGTH) / 2, a, b, M.shell, side * (SHELL_LENGTH + WINDOW_LENGTH) / 4);
+        sector(shell, 1.14, 1.225, (SHELL_LENGTH - WINDOW_LENGTH) / 2, a, b, M.barrel, side * (SHELL_LENGTH + WINDOW_LENGTH) / 4);
       }
     } else {
-      sector(shell, 1.14, 1.225, SHELL_LENGTH, a, b, M.shell);
+      sector(shell, 1.14, 1.225, SHELL_LENGTH, a, b, M.barrel);
     }
   }
   for (const x of [-2.13 - endOffset, 2.13 + endOffset]) sector(shell, 1.22, 1.268, .11, 0, Math.PI * 2, M.shellEdge, x);
-  // Longitudinal bolt rows follow both edges of the model's opening.
-  for (const side of [-1, 1]) {
-    const angle = side * Math.PI / 3;
-    for (let i = 0; i < 13; i++) {
-      const x = (-1.95 + i * .325) * lengthRatio;
-      const fastener = cyl(shell, .035, .085, M.dark, x, CY + 1.264 * Math.sin(angle), 1.264 * Math.cos(angle), 'y', 6);
-      fastener.quaternion.setFromUnitVectors(V(0, 1, 0), V(0, Math.sin(angle), Math.cos(angle)));
+  // The site photos show rows across the *whole* cylindrical surface.
+  // An individual washer and nut belong to the wall piece beneath them.
+  for (let row=0; row<16; row++) {
+    const a = (row+.24)*Math.PI/8, ny=Math.sin(a), nz=Math.cos(a);
+    const outward = V(0, ny, nz);
+    for (let i=0; i<11; i++) {
+      const x=(-2.0+i*.40)*lengthRatio, cut=cutSector(a) && Math.abs(x)<WINDOW_LENGTH/2;
+      cyl(shell,.044,.014,M.shellEdge,x,CY+1.232*ny,1.232*nz,'y',12,cut).quaternion.setFromUnitVectors(V(0,1,0),outward);
+      cyl(shell,.029,.041,M.shell,x,CY+1.251*ny,1.251*nz,'y',6,cut).quaternion.setFromUnitVectors(V(0,1,0),outward);
     }
-    const rail = box(shell, WINDOW_LENGTH + .03, .038, .06, M.steelBright, 0, CY + side * 1.19 * Math.sin(Math.PI / 3), 1.19 * .5);
-    rail.rotation.x = -side * Math.PI / 3;
   }
   for (const x of [-WINDOW_LENGTH / 2, WINDOW_LENGTH / 2]) {
     sector(shell, 1.134, 1.237, .045, -Math.PI / 3, Math.PI / 3, M.steelBright, x);
@@ -155,18 +167,18 @@ export function createBallMill(options = {}) {
   for (const sign of [-1, 1]) {
     const x = sign * (2.24 + endOffset);
     sector(shell, .53, 1.27, .15, 0, Math.PI * 2, M.shellEdge, x);
-    sector(shell, 1.22, 1.3, .18, 0, Math.PI * 2, M.steel, x);
+    sector(shell, 1.22, 1.3, .18, 0, Math.PI * 2, M.shellEdge, x);
     // The end covers remain legible around the central inspection window.
     const coverGeo = cachedGeometry('open-end-cover', () => new THREE.LatheGeometry(
       [[1.18,-.225],[.56,.225],[.306,.225],[.306,.166],[1.102,-.225],[1.18,-.225]].map(p => new THREE.Vector2(...p)), 64));
     mesh(shell, coverGeo, M.shell, sign * (2.48 + endOffset), CY, 0).rotation.z = -sign * Math.PI / 2;
     ring(shell, 1.276, .022, M.steelBright, sign * (2.335 + endOffset), CY, 0);
-    bolts(shell, sign * (2.35 + endOffset), 1.245, 40, .037);
+    bolts(shell, sign * (2.35 + endOffset), 1.245, 40, .037, M.shellEdge);
     sector(shell, .4, .58, .1, 0, Math.PI * 2, M.steel, sign * (2.76 + endOffset));
     bolts(shell, sign * (2.83 + endOffset), .505, 12, .034);
   }
   // The inspection cover, lifting eyes, and seam fasteners give the shell scale.
-  box(shell, .85, .065, .43, M.darkTeal, -.72, 3.43, .02, true);
+  box(shell, .85, .065, .43, M.shellEdge, -.72, 3.43, .02, true);
   box(shell, .75, .048, .34, M.shellEdge, -.72, 3.48, .02, true);
   for (const x of [-1.05, -.39]) for (const z of [-.13, .17]) cyl(shell, .03, .045, M.steelBright, x, 3.515, z, 'y', 6, true);
   for (const x of [-1.55, 1.5]) {
@@ -355,118 +367,89 @@ export function createBallMill(options = {}) {
     ],
   };
 
-  const gearing = part('gear', '左端大齿圈与护罩', '参照照片将齿圈及防护罩布置在筒体左端，与下方电机、减速传动对应。小齿轮带动大齿圈，再将转矩传递给筒体；剖视时移除部分护罩便于观察。', [-2.34, 3.47, .3], [-2.45, .05, -.1]);
+  const gearing = part('gear', '大齿圈与红色连接环', '深色齿面与传动侧小齿轮啮合，红色连接环把齿圈固定在筒体端部，两者随筒体旋转。黄色护罩固定不转。', [-2.46, 2.92, .98], [-2.45, .05, -.1]);
   const gearRotor = new THREE.Group();
+  gearRotor.name = 'ball-mill-girth-rotor';
   gearRotor.position.set(-2.34, CY, 0);
   gearing.add(gearRotor);
-  sector(gearRotor, 1.265, 1.39, .22, 0, Math.PI * 2, M.brass, 0, false, 0);
-  sector(gearRotor, 1.277, 1.345, .035, 0, Math.PI * 2, M.brassDark, .13, false, 0);
-  ring(gearRotor, 1.32, .018, M.brass, .15, 0, 0);
-  bolts(gearRotor, .154, 1.309, 48, .024, M.steelBright, false, 0);
+  sector(gearRotor, 1.270, 1.396, .23, 0, Math.PI * 2, M.tooth, 0, false, 0);
+  // Bolt holes pass through the web, rather than printing dark dots. Both
+  // axial faces have red paint; the working tooth flanks remain unpainted.
+  const flangeShape = new THREE.Shape();
+  flangeShape.absarc(0,0,1.305,0,Math.PI*2,false);
+  const opening = (x,y,r) => { const p=new THREE.Path();p.absarc(x,y,r,0,Math.PI*2,true);flangeShape.holes.push(p); };
+  opening(0,0,.925);
+  for(let i=0;i<12;i++) {
+    const a=(i+.5)*Math.PI/6;opening(1.20*Math.cos(a),1.20*Math.sin(a),.055);
+  }
+  const flangeGeo = new THREE.ExtrudeGeometry(flangeShape,{depth:.285,curveSegments:28,bevelEnabled:false});
+  flangeGeo.translate(0,0,-.1425);flangeGeo.rotateY(Math.PI/2);
+  mesh(gearRotor,flangeGeo,M.flangeRed).name='ball-mill-red-flange';
+  for(const side of [-1,1]) {
+    bolts(gearRotor,side*.153,1.14,36,.028,M.flangeRed,false,0);
+    ring(gearRotor,1.288,.007,M.flangeRed,side*.145,0,0);
+  }
   for (let i = 0; i < 108; i++) {
     const a = i / 108 * Math.PI * 2;
-    const tooth = box(gearRotor, .25, .083, .042, i % 3 ? M.brass : M.brassDark, 0, 1.414 * Math.sin(a), 1.414 * Math.cos(a));
+    const tooth = box(gearRotor, .25, .083, .042, M.tooth, 0, 1.414 * Math.sin(a), 1.414 * Math.cos(a));
     tooth.rotation.x = Math.PI / 2 - a;
   }
 
-  // Stationary left-end gear guard, opened toward the visitor in section view.
-  for (const [a, b, cut] of windowArcs) {
-    sector(gearing, 1.465, 1.59, .39, a, b, M.darkTeal, -2.34, cut);
-    for (const x of [-2.565, -2.115]) sector(gearing, 1.285, 1.59, .045, a, b, M.shellEdge, x, cut);
-  }
-  for (const z of [-.86, .86]) {
-    box(gearing, .57, .5, .18, M.darkTeal, -2.34, .44, z);
-    box(gearing, .72, .09, .42, M.dark, -2.34, .17, z);
-  }
-
-  const drive = part('drive', '左侧电机、减速器与小齿轮', '电机通过联轴器和减速机构驱动小齿轮，以较低转速带动筒体连续转动。护罩与底座用于隔离旋转部件并保持对中。', [-3.35, .95, 1.62], [-1.5, .05, 2.1]);
-  // The low pinion sits tangentially below and in front of the ring gear.
-  const PINY = 1.2, PINZ = 1.3;
-  box(drive, 2.71, .15, 1.07, M.dark, 2.67, .17, PINZ);
-  box(drive, 2.51, .1, .93, M.base, 2.67, .285, PINZ);
-  const pinion = new THREE.Group();
-  pinion.position.set(2.34, PINY, PINZ);
-  drive.add(pinion);
-  cyl(pinion, .2, .28, M.brass, 0, 0, 0);
-  for (let i = 0; i < 18; i++) {
-    const a = i / 18 * Math.PI * 2;
-    const t = box(pinion, .29, .06, .05, M.brass, 0, .22 * Math.sin(a), .22 * Math.cos(a));
-    t.rotation.x = Math.PI / 2 - a;
-  }
-  cyl(drive, .075, 1.46, M.steelBright, 2.18, PINY, PINZ);
-  for (const x of [1.28, 2.18]) {
-    box(drive, .29, .18, .44, M.darkTeal, x, .51, PINZ);
-    box(drive, .22, .54, .3, M.darkTeal, x, .84, PINZ);
-    cyl(drive, .166, .23, M.darkTeal, x, PINY, PINZ);
-    cyl(drive, .095, .25, M.steel, x, PINY, PINZ);
-  }
-  // Compact enclosed gearbox with side ribs and service cover.
-  box(drive, .67, .64, .68, M.darkTeal, 2.59, .94, PINZ);
-  box(drive, .59, .11, .85, M.shell, 2.59, .55, PINZ);
-  cyl(drive, .27, .035, M.shellEdge, 2.59, .93, PINZ + .36, 'z');
-  cyl(drive, .08, .045, M.brass, 2.59, .93, PINZ + .388, 'z');
-  for (let i = 0; i < 5; i++) box(drive, .043, .39, .055, M.shellEdge, 2.34 + i * .12, .96, PINZ + .365);
-  // Motor is parallel to the mill shaft with radial fins and perforation-like slots.
-  cyl(drive, .32, .81, M.shell, 3.53, 1.03, PINZ, 'x', 40);
-  cyl(drive, .355, .07, M.shellEdge, 3.14, 1.03, PINZ);
-  cyl(drive, .343, .16, M.darkTeal, 3.99, 1.03, PINZ);
-  cyl(drive, .29, .016, M.dark, 4.077, 1.03, PINZ);
-  for (let i = 0; i < 20; i++) {
-    const a = i / 20 * Math.PI * 2;
-    const fin = box(drive, .71, .061, .035, M.shellEdge, 3.53, 1.03 + Math.sin(a) * .335, PINZ + Math.cos(a) * .335);
-    fin.rotation.x = Math.PI / 2 - a;
-  }
-  for (let i = -3; i <= 3; i++) {
-    const zz = i * .063;
-    const hh = Math.sqrt(.25 * .25 - zz * zz) * 2;
-    box(drive, .012, hh, .019, M.slot, 4.09, 1.03, PINZ + zz);
-  }
-  for (const x of [3.26, 3.8]) {
-    box(drive, .16, .34, .58, M.darkTeal, x, .54, PINZ);
-    box(drive, .24, .07, .69, M.shellEdge, x, .39, PINZ);
-    for (const zz of [-.26, .26]) cyl(drive, .031, .035, M.steelBright, x, .445, PINZ + zz, 'y', 6);
-  }
-  box(drive, .35, .17, .31, M.darkTeal, 3.58, 1.43, PINZ);
-  box(drive, .37, .035, .34, M.shellEdge, 3.58, 1.53, PINZ);
-  cyl(drive, .118, .25, M.rubber, 3.006, 1.03, PINZ);
-  for (const x of [2.92, 3.09]) cyl(drive, .15, .035, M.steel, x, 1.03, PINZ);
-  for (const x of [1.46, 3.77]) for (const zz of [-.38, .38]) cyl(drive, .043, .045, M.steelBright, x, .357, PINZ + zz, 'y', 6);
-
-  // The reference places the motor and reducer on the left, in front of
-  // the trunnion pedestal. Reflect child transforms, not the public part root.
-  for (const child of drive.children) child.position.x *= -1;
-
-  const support = part('bearings', '主轴承与基础', '两端主轴承支承中空轴及筒体总成，将载荷传递到基础。轴承润滑和安装对中是稳定运行的关键。', [-2.93, 1.35, .43], [0, 0, 0]);
-  for (const side of [-1, 1]) {
-    const x = side * 2.99;
-    box(support, 1.32, .19, 1.67, M.base, x, .12, 0);
-    box(support, 1.12, .18, 1.45, M.dark, x, .29, 0);
-    // Continuous broad pedestal beneath each trunnion, following the photo.
-    box(support, .93, 1.38, 1.18, M.darkTeal, x, 1.08, 0);
-    box(support, 1.02, .12, 1.3, M.shell, x, 1.57, 0);
-    sector(support, .436, .57, .75, 0, 2 * Math.PI, M.shell, x);
-    sector(support, .35, .44, .77, 0, 2 * Math.PI, M.dark, x);
-    sector(support, .324, .352, .79, 0, 2 * Math.PI, M.steelBright, x);
-    box(support, .86, .092, 1.21, M.shellEdge, x, CY - .04, 0);
-    for (const xx of [-.32, .32]) for (const zz of [-.49, .49]) {
-      cyl(support, .052, .085, M.steelBright, x + xx, CY + .04, zz, 'y', 6);
+  // Photo 3 shows a removable hollow crescent. A fixed rear arc and two
+  // uprights stay on the base when the near upper section is lifted away.
+  const guard = part('gear-guard', '黄色齿轮护罩（可拆上段）', '护罩与齿圈之间留有间隙。剖视隐去近侧的弧形罩板，可见深色齿面和红色连接环；拆解中上段向上分离，两侧立座仍留在基础上。分段位置、尺寸为示意。',
+    [-2.34 - endOffset, 3.35, 1.13], [-.62, 2.7, 1.55]);
+  const lifted = new THREE.Group();
+  lifted.name='ball-mill-guard-segment';lifted.position.set(-2.34-endOffset,CY,0);guard.add(lifted);
+  const casing = new THREE.Group();
+  casing.name='ball-mill-fixed-gear-housing';casing.userData.partId='gear-guard';
+  casing.position.copy(lifted.position);group.add(casing);
+  const split = Math.PI*.53;
+  function coverArc(root,a,b,cut){
+    sector(root,1.588,1.624,.42,a,b,M.guardYellow,0,cut,0);
+    sector(root,1.568,1.587,.416,a,b,M.guardInside,0,cut,0);
+    for (const side of [-1,1]){
+      sector(root,1.487,1.626,.042,a,b,M.guardYellow,side*.218,cut,0);
+      sector(root,1.602,1.635,.027,a,b,M.guardEdge,side*.243,cut,0);
     }
-    for (const xx of [-.42, .42]) for (const zz of [-.55, .55]) {
-      cyl(support, .052, .085, M.steelBright, x + xx, .423, zz, 'y', 6);
+    // Rim of the open rectangular channel at each mating face.
+    for(const angle of [a,b]){
+      const fromYZ=(r)=>[r*Math.sin(angle),r*Math.cos(angle)];
+      const flange=(w,h,d,r,x,mat) => {
+        const [y,z]=fromYZ(r),p=box(root,w,h,d,mat,x,y,z,cut);p.rotation.x=-angle;return p;
+      };
+      for(const side of [-1,1])flange(.056,.051,.155,1.555,side*.24,M.guardEdge);
+      flange(.52,.051,.039,1.623,0,M.guardEdge);
+      for(const side of [-1,1]) {
+        const [y,z]=fromYZ(1.55);
+        const head=cyl(root,.022,.064,M.dark,side*.25,y,z,'y',6,cut);
+        head.rotation.x=-angle;
+      }
     }
-    for (const zz of [-.41, .41]) {
-      const rib = box(support, .82, .56, .063, M.shellEdge, x, .71, zz);
-      rib.rotation.x = zz < 0 ? -.17 : .17;
-    }
-    cyl(support, .048, .13, M.brass, x, CY + .6, -.04, 'y', 12);
-    ring(support, .38, .016, M.brassDark, x + side * .405, CY, 0);
-    // Grease pipe, gauge face and pedestal access plate.
-    cyl(support, .019, .51, M.brassDark, x + .29, 1.47, .48, 'y', 10);
-    cyl(support, .08, .038, M.brass, x + .29, 1.78, .505, 'z', 20);
-    cyl(support, .059, .043, M.steelBright, x + .29, 1.78, .509, 'z', 20);
-    box(support, .31, .22, .02, M.dark, x, .72, .602);
-    for (const xx of [-.12, .12]) for (const yy of [-.077, .077]) cyl(support, .017, .027, M.steelBright, x + xx, .72 + yy, .626, 'z', 6);
   }
+  coverArc(lifted,.013,split-.014,true);
+  coverArc(casing,split+.014,Math.PI-.013,false);
+  for(const sign of [-1,1]){
+    const z=sign*1.571;
+    box(casing,.42,1.69,.104,M.guardYellow,0,-.86,z);
+    for(const side of [-1,1])box(casing,.04,1.69,.152,M.guardYellow,side*.219,-.86,z);
+    box(casing,.53,.052,.216,M.guardEdge,0,-.022,z);
+    box(casing,.54,.075,.32,M.dark,0,-1.73,z);
+    box(casing,.54,.41,.33,M.base,0,-1.96,z);
+    // Lower access hatch with a return lip and bolted corners.
+    box(casing,.34,.45,.028,M.guardEdge,0,-.49,z+sign*.076);
+    box(casing,.30,.41,.03,M.guardYellow,0,-.49,z+sign*.095);
+    for(const xx of [-.125,.125])for(const yy of [-.65,-.33])cyl(casing,.017,.022,M.dark,xx,yy,z+sign*.115,'z',6);
+  }
+  // Small red bridge handle seen on the fixed-yellow skin in the photo.
+  for(const y of [.39,.64])cyl(lifted,.016,.13,M.flangeRed,-.02,y,1.60-y*.28,'z',10,true);
+  const handle = box(lifted,.03,.264,.034,M.flangeRed,-.02,.515,1.52,true);
+  handle.rotation.x=-.27;
+  instanceRepeatedMeshes(casing);
+
+  const { drive, pinion, support } = buildMillTransmission({
+    part, mesh, box, cyl, sector, ring, bolts, M, CY, endOffset, cachedGeometry,
+  });
 
   const feed = part('trunnions', rubberLined ? '中空轴与溢流排矿口' : '中空轴与排矿通道',
     rubberLined ? '设备标示卡确认本机为溢流型。扇形橡胶端衬在中空轴孔周围收口；矿浆经排矿端溢出。孔径、端衬断面和排矿端细节为原理示意。' : '设备标示卡确认 1# 为格子型。矿浆通过排矿端格子孔进入排矿通道；本图以格栅示意通流关系，孔形和数量未经实测。', [-3.56, 2.7, 0], [0, 1.9, 0]);
