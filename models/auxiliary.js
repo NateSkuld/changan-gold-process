@@ -140,7 +140,7 @@ export function createPlantSymbol(type, node = null){
         steel:material(0xa1b3a1,.7,.4), gold:material(0xb5a16a,.65,.4),
         slurry:material(0x506e61,.08,.87), foam:material(0xc7c5a1,.05,.82),
         water:material(0x5cabbc,.12,.35), sediment:material(0x8f7954,.15,.85), media:material(0x8c9b93,.75,.38), standby:material(0x67796f,.3,.7),
-        shell:material(0x367b70,.55,.45,{side:THREE.DoubleSide}),
+        shell:material(0x367b70,.55,.45,{side:THREE.DoubleSide}), concrete:material(0xa3a293,.04,.81,{side:THREE.DoubleSide}),
         millWhite:material(0xe3e1d7,.17,.58), millYellow:material(0xe4ad26,.22,.51),
         millRed:material(0xa53634,.25,.50), millGrey:material(0x737b7b,.32,.53),
         millIron:material(0x383b39,.49,.49),
@@ -194,26 +194,32 @@ export function createPlantSymbol(type, node = null){
   }else if(type==='cone'){
     cyl(.95,.85,1.35,'teal',0,.95,0);cyl(1.1,.8,.6,'steel',0,1.95,0);cyl(.04,.62,1.15,'gold',0,1.5,0);ring(.95,'gold',0,1.5,0);box(.7,.4,.5,'dark',1.1,.45,0);
   }else if(type==='flotation'){
-    // One open rectangular cell stands for the entire flotation operation;
-    // the supplied board does not assign a machine count to each operation.
+    // One cell stands for the operation. Use the U section of the supplied
+    // installation view as a shared reference, not a rating for each circuit.
     g.userData.representsOperation=true;g.userData.machineCount=null;
-    for(const x of[-.92,.92])for(const z of[-.55,.55])box(.12,.36,.12,'steel',x,.32,z);
-    box(2.4,.12,1.45,'teal',0,.51,0);
-    for(const z of[-.72,.72])box(2.4,.8,.1,'teal',0,.96,z);
-    for(const x of[-1.15,1.15])box(.1,.8,1.35,'teal',x,.96,0);
-    name(box(2.17,.055,1.25,'slurry',0,1.29,0),'矿浆液面');
-    name(box(2.15,.055,1.23,'foam',0,1.35,0),'矿化泡沫层');
-    name(particles(30,.063,'foam',i=>[-.91+(i%6)*.36,1.39+((i*7)%3)*.012,-.48+Math.floor(i/6)*.235,1,.62,1]),'泡沫颗粒示意');
+    const h=1.62,w=h*2.25/1.9,d=h*2.18/1.9;
+    const sx=w/2,sz=d/2,top=h+.25;
+    const profile=new THREE.Shape();profile.moveTo(-sz,h);profile.lineTo(-sz,.76);
+    profile.quadraticCurveTo(-sz,0,-.24,0);profile.lineTo(.24,0);profile.quadraticCurveTo(sz,0,sz,.76);
+    profile.lineTo(sz,h);profile.lineTo(sz-.055,h);profile.lineTo(sz-.055,.76);
+    profile.quadraticCurveTo(sz-.055,.055,.24,.055);profile.lineTo(-.24,.055);profile.quadraticCurveTo(-sz+.055,.055,-sz+.055,.76);profile.lineTo(-sz+.055,h);profile.closePath();
+    name(add(cached('float-drawing-channel-v1',()=>{const geo=new THREE.ExtrudeGeometry(profile,{depth:w,steps:1,curveSegments:9,bevelEnabled:false});geo.translate(0,0,-sx);geo.rotateY(Math.PI/2);return geo;}),'teal',0,.25,0),'图示U形槽壳');
+    const end=cached('float-drawing-end-v1',()=>{const shape=new THREE.Shape();shape.moveTo(-sz,h);shape.lineTo(-sz,.76);shape.quadraticCurveTo(-sz,0,-.24,0);shape.lineTo(.24,0);shape.quadraticCurveTo(sz,0,sz,.76);shape.lineTo(sz,h);shape.closePath();const geo=new THREE.ExtrudeGeometry(shape,{depth:.045,steps:1,curveSegments:9,bevelEnabled:false});geo.rotateY(Math.PI/2);return geo;});
+    for(const x of[-sx,sx-.045])add(end,'teal',x,.25,0);
+    for(const x of[-.68,.68])box(.16,.17,1.26,'steel',x,.245,0);
+    name(box(w-.12,.04,d-.12,'slurry',0,top-.09,0),'矿浆液面');
+    name(box(w-.12,.044,d-.12,'foam',0,top-.046,0),'矿化泡沫层');
+    name(particles(30,.063,'foam',i=>[-.76+(i%6)*.30,top-.01+((i*7)%3)*.012,-.71+Math.floor(i/6)*.34,1,.62,1]),'泡沫颗粒示意');
     // The front launder is distinct from the low pulp outlet at the end wall.
-    name(box(2.5,.09,.33,'gold',0,1.21,.96),'精矿溜槽底板');
-    box(2.5,.23,.055,'steel',0,1.3,1.12);
-    for(const x of[-1.25,1.25])box(.055,.23,.33,'steel',x,1.3,.96);
-    name(pipe(.085,.32,'gold',1.4,1.2,.96,'x'),'泡沫精矿出口');
-    name(pipe(.13,.35,'steel',-1.36,.69,-.24,'x'),'独立矿浆出口');
-    pipe(.11,.31,'steel',1.35,1.05,-.29,'x');
-    box(2.52,.12,.24,'steel',0,1.7,0);
-    pipe(.052,.64,'gold',0,1.48,0);
-    box(.36,.25,.34,'dark',0,1.89,0);cyl(.2,.2,.34,'teal',0,2.13,0);
+    name(box(w+.15,.08,.24,'gold',0,top-.19,sz+.10),'精矿溜槽底板');
+    box(w+.15,.20,.042,'steel',0,top-.12,sz+.21);
+    pipe(.084,top-.19-1.2,'gold',sx+.02,(top-.19+1.2)/2,.96);
+    name(pipe(.085,1.56-sx,'gold',(1.56+sx)/2,1.2,.96,'x'),'泡沫精矿出口');
+    name(pipe(.13,1.535-sx,'steel',-(1.535+sx)/2,.69,-.24,'x'),'独立矿浆出口');
+    pipe(.11,1.50-sx,'steel',(1.50+sx)/2,1.05,-.29,'x');
+    box(w+.12,.10,.18,'steel',0,top+.16,0);
+    name(pipe(.06,.65,'steel',0,top-.06,0),'中心搅拌轴');
+    box(.36,.22,.34,'dark',0,top+.29,0);cyl(.17,.17,.29,'teal',0,top+.52,0);
     g.userData.ports={feed:[1.5,1.05,-.29],concentrate:[1.56,1.2,.96],pulp:[-1.535,.69,-.24]};
   }else if(type==='stirred'){
     // A cut-open high chamber explains stirring and the media zone. It does
@@ -289,6 +295,27 @@ export function createPlantSymbol(type, node = null){
       for(const z of[-.8,.8])box(2.6,.16,.06,'teal',0,.69,z);
       pipe(.11,.28,'gold',1.37,.56,0,'x');
     }
+  }else if(type==='thickener'&&node?.id==='tailings-thickener'){
+    // The two slopes and central annular sump follow YS0160411-4. Symbols are
+    // diagram-sized; the detailed model carries the complete civil profile.
+    const s=1.46/19, y=e=>1.26+e*s;
+    const stations=[[.9,-4.231],[1.5825,-4.231],[2.275,-3.031],[11.325,-.942],[19,0],[19,1.9]];
+    name(add(cached('gzn38-section',()=>new THREE.LatheGeometry(stations.map(([r,e])=>new THREE.Vector2(r*s,y(e))),48,Math.PI/2,Math.PI)),'concrete'),'尾矿池双坡池底与周壁');
+    name(add(cached('gzn38-underwall',()=>new THREE.CylinderGeometry(1.46,1.46,1.07,40,1,true,Math.PI/2,Math.PI)),'concrete',0,.72,0),'池下外围护剖面');
+    for(const [count,r] of [[9,4.2],[18,11.325]])for(let i=0;i<count;i++){
+      const a=i*Math.PI*2/count;
+      box(.052,.87,.052,'concrete',r*s*Math.cos(a),.67,r*s*Math.sin(a));
+    }
+    name(cyl(.9*s,.9*s,1.18,'concrete',0,.79,0),'中心支柱');
+    ring(1.49,'steel',0,y(1.9),0);ring(1.44,'water',0,y(1.42),0);
+    name(box(1.51,.075,.16,'steel',-.755,1.59,0),'池边至中心径向走台');
+    name(box(.12,.08,1.98,'steel',0,1.56,.48),'长短臂示意');
+    for(let i=0;i<3;i++)pipe(.028,.29,'steel',0,1.32,.24+i*.46);
+    pipe(.06,1.51,'gold',-.755,1.63,0,'x');cyl(.12,.12,.18,'teal',0,1.53,0);
+    pipe(.067,y(-4.231)-.4,'steel',.12,(y(-4.231)+.4)/2,0);
+    name(pipe(.067,1.16,'steel',.70,.4,0,'x'),'尾矿底流至泵');
+    name(pipe(.054,.23,'water',1.515,1.49,0,'x'),'溢流至回水池');
+    g.userData.ports={feed:[-1.51,1.63,0],underflow:[1.28,.4,0],overflow:[1.63,1.49,0]};
   }else if(type==='thickener'){
     // A sectioned operation symbol makes the high overflow and low solids outlet distinct.
     for(const x of[-.8,.8])for(const z of[-.7,.7])box(.09,.52,.09,'steel',x,.36,z);
@@ -307,7 +334,12 @@ export function createPlantSymbol(type, node = null){
     }
     name(add(cached('feedwell-symbol',()=>new THREE.CylinderGeometry(.36,.36,.41,20,1,true)),'shell',0,1.54,0),'中心给矿井');
     pipe(.085,1.18,'gold',-.92,1.63,0,'x');
-    box(2.75,.1,.22,'steel',0,1.85,0);box(.32,.19,.33,'dark',0,2,0);cyl(.19,.19,.3,'teal',0,2.2,0);
+    box(2.75,.082,.32,'steel',0,1.85,0);name(box(1.34,.085,.62,'steel',0,1.85,0),'中部加宽走台板');
+    for(const side of[-1,1]){
+      box(1.34,.032,.03,'gold',0,2.05,side*.31);
+      for(const x of[-.63,0,.63])box(.031,.18,.03,'steel',x,1.96,side*.31);
+    }
+    name(cyl(.245,.245,.16,'dark',0,2.01,0),'中心传动');pipe(.09,.41,'teal',.18,2.14,0,'x');
     name(pipe(.095,1.37,'gold',.6,.4,0,'x'),'底流排矿');
     name(pipe(.07,.42,'water',1.42,1.49,0,'x'),'上部溢流');
     g.userData.ports={feed:[-1.51,1.63,0],underflow:[1.28,.4,0],overflow:[1.63,1.49,0]};

@@ -13,6 +13,8 @@ import { PLANT_NODES, PLANT_EDGES, PLANT_STAGES, PLANT_METRICS, REFERENCE_NOTES 
 import { createSiteJawCrusher, createSiteScreen, createSiteConveyor } from './models/crushing-site.js';
 import { SITE_REFERENCES, BOARD_REFERENCES, LINER_REFERENCES } from './reference-data.js';
 import { FIELD_EQUIPMENT } from './field-specs.js';
+import { DRAWINGS } from './drawing-records.js';
+import { drawingFigure } from './drawing-figures.js';
 import { PROCESS_CIRCUITS } from './flow-views.js';
 import { FLOW_FOCUS_OPTIONS } from './slurry-flow.js';
 import { PROCESS_TOUR_STEPS, PROCESS_TOUR_CHAPTERS, createProcessTour } from './process-tour.js';
@@ -56,6 +58,8 @@ const viewport=$('viewport'), hotspotLayer=$('hotspots');
 const raycaster=new THREE.Raycaster(), pointer=new THREE.Vector2();
 const cameraGoal=new THREE.Vector3(), targetGoal=new THREE.Vector3();
 let cameraTween=false, last=performance.now(), lastPointer={x:0,y:0}, hoverMesh=null;
+let drawingElevation=false;
+function setDrawingElevation(on){drawingElevation=on;$('drawing-elevation').setAttribute('aria-pressed',String(on));}
 let hotspotItems=[], outline=null, toastTimer=null;
 let labelSizeDirty=true,labelLeaders=null;
 const labelResizeObserver=new ResizeObserver(()=>{labelSizeDirty=true;});
@@ -72,7 +76,7 @@ function init(){
   scene=new THREE.Scene();scene.fog=new THREE.FogExp2(0x0b1717,.014);
   camera=new THREE.PerspectiveCamera(35,1,.1,350);camera.position.set(9.2,6.6,12.5);
   controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.065;controls.target.set(0,1.5,0);controls.minDistance=6;controls.maxDistance=32;controls.maxPolarAngle=Math.PI*.485;controls.enablePan=true;controls.panSpeed=.5;
-  controls.addEventListener('start',()=>{cameraTween=false;if(processTour.snapshot.active)pauseProcessTour('已暂停 · 自由观察');});
+  controls.addEventListener('start',()=>{cameraTween=false;if(drawingElevation)setDrawingElevation(false);if(processTour.snapshot.active)pauseProcessTour('已暂停 · 自由观察');});
   const env=new RoomEnvironment();const pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(env,.04).texture;scene.environmentIntensity=.65;env.dispose();pmrem.dispose();
   scene.add(new THREE.HemisphereLight(0xdce5e3,0x303224,1.5));
   const key=shadowKey=new THREE.DirectionalLight(0xe4e8d5,4.5);key.position.set(2,11,8);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-12;key.shadow.camera.right=12;key.shadow.camera.top=12;key.shadow.camera.bottom=-12;key.shadow.normalBias=.04;key.shadow.bias=-.0002;key.shadow.radius=3;scene.add(key);
@@ -86,7 +90,7 @@ function init(){
   const tickPts=[];for(let i=0;i<96;i++){const a=i/96*Math.PI*2,r=6.8;tickPts.push(new THREE.Vector3(Math.cos(a)*r,.01,Math.sin(a)*r),new THREE.Vector3(Math.cos(a)*(r+(i%8===0?.19:.08)),.01,Math.sin(a)*(r+(i%8===0?.19:.08))));}baseRing.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(tickPts),new THREE.LineBasicMaterial({color:0xb9a679,transparent:true,opacity:.25})));
   outline=new THREE.Box3Helper(new THREE.Box3(),0xd1b37c);outline.material.transparent=true;outline.material.opacity=.25;outline.visible=false;scene.add(outline);
   new ResizeObserver(resize).observe(viewport);resize();
-  if(location.hash!=='#mill-exterior')selectEquipment('cone',true);
+  if(location.hash!=='#mill-exterior'&&!drawingFromHash())selectEquipment('cone',true);
   renderer.domElement.addEventListener('pointerdown',e=>lastPointer={x:e.clientX,y:e.clientY});
   renderer.domElement.addEventListener('pointerup',e=>{if(Math.hypot(e.clientX-lastPointer.x,e.clientY-lastPointer.y)>5)return;const hit=pick(e);if(!hit)return;if(state.overview){const id=ancestorValue(hit.object,'nodeId');if(id)selectPlantNode(id);}else{const id=ancestorValue(hit.object,'partId');if(id)selectPart(id);}});
   renderer.domElement.addEventListener('pointermove',e=>{const hit=pick(e);renderer.domElement.style.cursor=hit?'pointer':'grab';
@@ -130,9 +134,10 @@ function fitShadowCamera(light,holders=[],extraBounds=null){
 function updateShadowCoverage(){fitShadowCamera(shadowKey,state.overview?plantModel?.labelObjects?.values():[]);}
 function getModel(id){
   if(id==='screen'&&state.nodeId==='prescreen')id='prescreen';
-  const unit=id==='mill'?FIELD_EQUIPMENT[state.nodeId].unit:null, key=unit?`mill:${unit}`:id;
+  const diameter=id==='thickener'?(state.nodeId==='tailings-thickener'?38:12):null;
+  const unit=id==='mill'?FIELD_EQUIPMENT[state.nodeId].unit:null, key=unit?`mill:${unit}`:diameter?`thickener:${diameter}`:id;
   if(!models.has(key)){
-    const model=unit?createBallMill({unit}):makers[id]();
+    const model=unit?createBallMill({unit}):diameter?createThickener({diameter}):makers[id]();
     model.parts.forEach(p=>{p.base=p.root.position.clone();p.root.userData.partId=p.id;});
     model.group.userData.equipmentId=id;models.set(key,model);
   }
@@ -155,7 +160,7 @@ function makeHotspot(label,num,callback,position,type='part'){
 }
 function partHotspots(){
   clearHotspots();if(!current)return;
-  const favored={mill:['gear-guard','pinion-bearings','bearings']};
+  const favored={mill:['gear-guard','pinion-bearings','bearings'],flotation:['flotation-tank','flotation-drive','flotation-rotor']};
   let parts=current.parts.filter(p=>favored[state.id]?.includes(p.id));
   if(state.view==='cutaway'&&current.operationGuide){
     const steps=current.operationGuide.steps;
@@ -178,6 +183,14 @@ function partHotspots(){
   }
 }
 function renderFieldControls(){
+  const drawing=activeDrawing();
+  $('drawing-controls').hidden=!drawing||state.overview;
+  if(drawing){
+    $('drawing-heading').textContent=drawing.badge;
+    $('drawing-elevation').hidden=!renderer;
+    $('drawing-elevation').textContent=state.id==='flotation'?'对照端视':'对照剖面';
+    for(const b of $('drawing-choices').children)b.setAttribute('aria-pressed',String(DRAWINGS[b.dataset.drawing]===drawing));
+  }
   const card=FIELD_EQUIPMENT[state.nodeId],panel=$('field-controls');
   panel.hidden=!card||state.overview;
   if(panel.hidden)return;
@@ -185,6 +198,16 @@ function renderFieldControls(){
   $('mill-units').hidden=!card.unit;$('field-liner').hidden=!card.unit||!renderer;
   $('field-bearing').hidden=!card.unit||!renderer;
   for(const b of $('mill-units').children)b.setAttribute('aria-pressed',String(b.dataset.millNode===state.nodeId));
+}
+function activeDrawing(){
+  if(state.id==='flotation')return DRAWINGS.flotation;
+  if(state.id==='thickener')return state.nodeId==='tailings-thickener'?DRAWINGS.thickener38:DRAWINGS.thickener12;
+  return null;
+}
+for(const [key,d] of Object.entries(DRAWINGS)){
+  const b=document.createElement('button');b.type='button';b.dataset.drawing=key;b.textContent=d.short;
+  b.onclick=()=>selectEquipment(d.equipment,false,d.node);
+  $('drawing-choices').append(b);
 }
 for(const [id,card] of millsByUnit){
   const b=document.createElement('button');b.type='button';b.dataset.millNode=id;
@@ -201,12 +224,20 @@ function selectEquipment(id,initial=false,nodeId=null,compare=false){
     lastMillNodeId=nodeId;
     if(state.id!=='mill'&&state.view==='solid')state.view='cutaway';
   }else if(id==='spiral'&&!nodeId)nodeId='spiral-classifier';
+  else if(id==='thickener'&&!nodeId)nodeId='concentrate-thickener';
   leaveTourForNavigation();if(!initial&&!compare)revealWorkspace();state.overview=false;state.id=id;state.nodeId=nodeId;state.selected=null;$('process-controls').hidden=true;$('stage-selector').hidden=true;$('crushing-tools').hidden=true;document.body.classList.remove('crushing-mode');$('plant-legend').hidden=true;$('node-directory').hidden=true;$('plant-hover').hidden=true;$('back-to-process').hidden=!nodeId&&id!=='conveyor';$('crushing-entry').hidden=false;document.body.classList.remove('process-mode');$('equipment-nav').classList.add('active');$('equipment-nav').setAttribute('aria-current','page');$('process-nav').classList.remove('active');$('process-nav').removeAttribute('aria-current');$('part-drawer').hidden=true;
   renderFieldControls();
   renderEquipmentConnections();
   const d=equipmentRecord(id,nodeId),node=NODE_BY_ID.get(nodeId);$('hero-title').innerHTML='让原理，<br>清晰可见<span>。</span>';$('hero-description').innerHTML='穿过钢铁的表面，走进黄金的旅程。<br>以三维视角，重新认识每一台设备。';$('equipment-number').textContent=d.number;$('equipment-stage').textContent=`${d.stage} / ${stageEn[id]}`;$('equipment-name').textContent=node?.label||d.name.replace('机械搅拌','');$('equipment-model').textContent=node?.model||d.model||'';$('evidence-badge').textContent=d.badge||(id==='screen'?'蓝色外罩参考实拍 · 型号对应待核对':node?'展板节点 · 通用结构示意':id==='mill'?'依据实拍模型重建 · 尺寸示意':'展板工艺 · 通用结构示意');$('equipment-english').textContent=d.enName;$('equipment-summary').textContent=node?.note||summaries[id]||d.description;$('drawing-number').textContent=`FIG. ${d.number} / ${stageEn[id]}`;$('render-state').textContent='实时三维 · 原理示意';$('learn-button').innerHTML='理解它如何工作 <span>↗</span>';$('interaction-hint').innerHTML='<span>↔</span> 拖动旋转 <i></i> 滚轮缩放 <i></i> 点击零件探索';$('flow-toggle').innerHTML='查看工艺全景 <span>↗</span>';viewport.setAttribute('aria-label',`可旋转的${d.name}三维模型。可使用下方按钮切换视图，使用零件目录查看内部结构。`);
   $('back-to-process').textContent=state.plantCircuit?'← 返回所选回路':'← 返回所选工段';
   const field=FIELD_EQUIPMENT[nodeId];
+  const drawing=activeDrawing();
+  if(drawing){
+    $('evidence-badge').textContent=id==='flotation'?'图纸单槽 · 机组对应待核对':drawing.badge;
+    if(!node)$('equipment-name').textContent=drawing.title;
+    if(!node)$('equipment-model').textContent='单槽尺寸 · 2180 × 2250 × 1900 mm';
+    $('equipment-summary').textContent=drawing.lead;
+  }
   if(field){
     const name=fieldName(nodeId,field);
     $('equipment-name').textContent=name;$('equipment-model').textContent=`设备标识卡 · ${field.model}`;
@@ -221,6 +252,7 @@ function selectEquipment(id,initial=false,nodeId=null,compare=false){
   if(previousPart)selectPart(previousPart,false);
 }
 function applyView(view,immediate=false){
+  setDrawingElevation(false);
   state.view=view;
   document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);b.setAttribute('aria-pressed',String(b.dataset.view===view));});
   if(!current||state.overview)return;
@@ -425,6 +457,12 @@ function resetCamera(immediate=false){
     const distance=(mobile?1.2:1)*(exploded?1.24:1);
     cameraGoal.set(tall?8.5:7,tall?7.8:5.8,tall?15:12.7).multiplyScalar(distance);
     targetGoal.set(0,exploded?(tall?3:2.1):(tall?2.65:1.45),0);
+    if(!exploded&&activeDrawing()){
+      const fl=state.id==='flotation',large=state.nodeId==='tailings-thickener';
+      targetGoal.set(0,fl?2.12:large?.89:2.00,0);
+      const direction=drawingElevation?(fl?[1,.035,.008]:[0,.028,1]):[.51,large?.46:.35,.87];
+      cameraGoal.copy(targetGoal).add(new THREE.Vector3(...direction).normalize().multiplyScalar(mobile?9.3:10.2));
+    }
     if(state.id==='cone'){cameraGoal.set(10.2,8.6,17.5).multiplyScalar(distance);targetGoal.set(.5,exploded?3.8:3.3,0);}
     if(state.id==='crusher'){cameraGoal.set(8.5,7,14).multiplyScalar(distance);targetGoal.set(.4,2.3,0);}
     if(state.id==='screen'){cameraGoal.set(8.5,7.5,14.5).multiplyScalar(distance);targetGoal.set(0,2.5,0);}
@@ -450,6 +488,7 @@ function selectPlantNode(id){
 }
 function revealWorkspace(){const behavior=reduceMotion?'instant':'smooth';if(matchMedia('(max-width:900px)').matches)document.querySelector('.viewer-panel').scrollIntoView({block:'start',behavior});else window.scrollTo({top:0,behavior});}
 function enterProcess(){
+  $('drawing-controls').hidden=true;
   leaveTourForNavigation();revealWorkspace();
   if(!renderer){showManual('process');return;}
   closeParts();state.overview=true;$('field-controls').hidden=true;$('operation-panel').hidden=true;$('equipment-connections').hidden=true;explosion.playing=false;if(explosion.guides)explosion.guides.group.visible=false;$('explosion-panel').hidden=true;document.body.classList.remove('exploded-mode');updatePlay();document.body.classList.add('process-mode');
@@ -758,7 +797,10 @@ function fieldCardData(id,card){
 function showManual(which=state.overview?'process':state.id,fieldId=state.nodeId){
   if(processTour.snapshot.active)pauseProcessTour('已暂停 · 阅读资料');
   const container=$('dialog-content'),dialog=$('info-dialog');dialog.classList.toggle('wide-dialog',['references','directory','technology'].includes(which));
-  if(which==='field'){
+  if(which==='drawing'){
+    const key=fieldId,d=DRAWINGS[key];if(!d)return;
+    container.innerHTML=`<div class="en">DRAWING STUDY / ${d.number}</div><h2>${d.title}</h2><p>${d.lead}</p>${drawingFigure(key)}<dl class="field-rows">${d.rows.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl><h3>原图与适用范围</h3><p>${d.source}</p><p class="about-note">${d.limit}</p>`;
+  }else if(which==='field'){
     const card=FIELD_EQUIPMENT[fieldId];if(!card)return;
     container.innerHTML=`<div class="en">EQUIPMENT RECORD / 设备标示卡</div><h2>${fieldName(fieldId,card)}</h2>${fieldCardLinks(fieldId)}<h3>${card.model}${card.unit?' · '+card.type+' · '+linerLabel(card):''}</h3><p class="about-note">${card.note}</p>${fieldCardData(fieldId,card)}<button type="button" class="technical-inline-link" data-open-node="${fieldId}">查看这台设备的三维模型 ↗</button>`;
   }else if(which==='technology'){
@@ -776,6 +818,7 @@ function showManual(which=state.overview?'process':state.id,fieldId=state.nodeId
     const d=equipmentRecord(which,state.nodeId),node=NODE_BY_ID.get(state.nodeId);if(!d)return;
     container.innerHTML=`<div class="en">${d.number} / ${d.enName}</div><h2>${node?.label||d.name}</h2><div class="model-pill">${node?.model||d.model||'原理示意'}</div>${node?`<p class="about-note">${node.note}</p>`:''}<p>${d.description}</p><h3>工作原理</h3><p>${d.principle}</p><div class="flow-io"><div><span>INPUT / 给料</span><strong>${d.input}</strong></div><div><span>OUTPUT / 产物</span><strong>${d.output}</strong></div></div>${node?nodeLinks(node):''}<h3>三个观察时刻</h3><ol>${d.steps.map(s=>`<li>${s}</li>`).join('')}</ol><h3>观察重点</h3><p>${d.focus.join('　 / 　')}</p><p class="about-note">${d.evidence||'设备结构与运动为原理示意，尺寸未按制造图校准。'}</p><h3>资料依据</h3>${sourceLinks(d.sources)}<p class="caption-note">展板指标不是实时数据。图中钢球、矿粒与气泡的运动用于教学，不代表精确动力学。</p>`;
   }
+  if(which===state.id&&!state.overview&&activeDrawing())container.querySelector('.model-pill')?.insertAdjacentHTML('afterend','<button type="button" class="technical-inline-link" data-read-drawing>读图与尺寸 ↗</button>');
   if(which===state.id&&!state.overview&&FIELD_EQUIPMENT[state.nodeId])container.querySelector('.model-pill')?.insertAdjacentHTML('afterend',`<button type="button" class="technical-inline-link" data-field-card="${state.nodeId}">查看本机设备参数 ↗</button>`);
   if(['process','references'].includes(which))container.insertAdjacentHTML('afterbegin','<button class="technical-inline-link" data-open-technology>新增：公开技术资料与版本核对 ↗</button>');
   if(!dialog.open)dialog.showModal();container.scrollTop=0;
@@ -825,7 +868,7 @@ $('explosion-range').addEventListener('input',event=>seekExplosion(Number(event.
 $('explosion-expand').onclick=()=>seekExplosion(1);
 $('explosion-collapse').onclick=()=>seekExplosion(0);
 $('explosion-replay').onclick=()=>{if(state.overview||state.view!=='exploded')return;seekExplosion(0,true);explosion.playing=true;updatePlay();};
-$('reset-button').onclick=()=>{if(state.id==='mill'&&state.selected==='pinion-bearings')closeParts();resetCamera();toast('已重置观察视角');};
+$('reset-button').onclick=()=>{setDrawingElevation(false);if(state.id==='mill'&&state.selected==='pinion-bearings')closeParts();resetCamera();toast('已重置观察视角');};
 $('labels-button').onclick=()=>{state.labels=!state.labels;$('labels-button').setAttribute('aria-pressed',String(state.labels));$('labels-button').querySelector('.toggle').classList.toggle('active',state.labels);};
 $('parts-button').onclick=()=>{if(!current)return;if(!$('part-drawer').hidden){closeParts();return;}selectPart(current.parts[0].id);};
 $('close-parts').onclick=closeParts;
@@ -854,10 +897,26 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeParts();if(pro
 window.addEventListener('error',event=>{if(!$('loading').hidden){$('loading').innerHTML='<span>模型加载遇到问题</span><small>请刷新页面重试，或通过原理手册查看设备说明。</small>';}});
 init();
 function openMillExterior(){
-  if(location.hash!=='#mill-exterior')return;
-  selectEquipment('mill',true,'mill-primary');
-  applyView('solid',true);
+  const d=drawingFromHash();
+  if(d)selectEquipment(d.equipment,true,d.node);
+  else if(location.hash==='#mill-exterior')selectEquipment('mill',true,'mill-primary');
+  else return;
+  applyView(d?'cutaway':'solid',true);
   if(renderer)resetCamera(true);
 }
+function drawingFromHash(){
+  return Object.hasOwn(DRAWINGS,location.hash.slice(1))?DRAWINGS[location.hash.slice(1)]:null;
+}
+function readDrawing(){
+  const k=Object.keys(DRAWINGS).find(k=>DRAWINGS[k]===activeDrawing());
+  if(k)showManual('drawing',k);
+}
+$('drawing-data').onclick=readDrawing;
+$('drawing-elevation').onclick=()=>{
+  const next=!drawingElevation;
+  if(next&&state.view!==(state.id==='flotation'?'solid':'cutaway'))applyView(state.id==='flotation'?'solid':'cutaway',true);
+  setDrawingElevation(next);resetCamera();
+};
+$('dialog-content').addEventListener('click',e=>{if(e.target.closest('[data-read-drawing]'))readDrawing();});
 openMillExterior();
 window.addEventListener('hashchange',openMillExterior);

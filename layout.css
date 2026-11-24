@@ -1,4 +1,13 @@
 /* Static interface uses document flow; only 3D anchors float over the canvas. */
+.layout-v4 .drawing-choices {margin:10px 0 0}
+.drawing-sheet {margin:18px 0;padding:12px 14px;background:#101c1c;border:1px solid #4c6156;border-radius:4px}
+.drawing-sheet svg {width:100%;max-height:224px;display:block}
+.drawing-sheet path {vector-effect:non-scaling-stroke}
+.drawing-sheet .section {fill:#203c37;stroke:#a7c6b1;stroke-width:1.4}
+.drawing-sheet .measure {fill:none;stroke:#ccaf73}
+.drawing-sheet .axis {fill:none;stroke:#72928b;stroke-dasharray:5 3}
+.drawing-sheet text {fill:#dcc99d;font:11px sans-serif}
+.drawing-sheet figcaption {margin-top:8px;color:#a5b3a8;font-size:12px}
 .layout-v4 .field-controls {padding:14px 16px;border:1px solid #53634880;border-radius:5px;background:#1b2a233d;min-width:0}
 .layout-v4 .field-heading {display:flex;align-items:center;justify-content:space-between;gap:10px 18px;flex-wrap:wrap}
 .layout-v4 .field-kicker {font:9px/1.5 monospace;letter-spacing:1.5px;color:var(--gold)}

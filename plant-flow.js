@@ -46,7 +46,7 @@ export const PLANT_NODES = [
   { id: 'lamella-group', label: '1#–3# 斜板浓密机', model: '150/55 × 3 台', type: 'lamella', stage: 'dewatering', position: [-11,0,8], note: '三台串联，图中分别标注 1#、2#、3#。各台底流精矿汇入压滤机，末端溢流进入高位水池。全景将三台合并为一组。' },
   { id: 'filter-press', label: '精矿压滤机', model: 'MG100/1000-U', type: 'filter', stage: 'dewatering', position: [-11,0,2], equipmentId: 'filter', note: '浓密底流与斜板回收精矿汇入压滤。展板标注压滤浓度 45%、滤饼水分 ≤13%。' },
   { id: 'concentrate-storage', label: '精矿库', model: '含金精矿滤饼', type: 'storage', stage: 'dewatering', position: [-6,0,8], note: '选矿流程的产品终点为含金精矿；不是成品黄金。' },
-  { id: 'tailings-thickener', label: '尾矿浓密池', model: 'Φ38 m', type: 'thickener', stage: 'water', position: [23,0,-4], note: '选厂尾矿浆自流入池脱水。简介标注底流浓度 37%；底流由柱塞泥浆泵输送至尾矿库。' },
+  { id: 'tailings-thickener', label: '尾矿浓密池', model: 'GZN-38 · Φ38 m', type: 'thickener', stage: 'water', position: [23,0,-4], equipmentId:'thickener', note: '扫选尾矿进入 GZN-38 浓密池，底流送往尾矿泵；溢流先进入尾矿浓密机回水池。流程总图以高位水池表示回水系统。' },
   { id: 'tailings-storage', label: '大黑山尾矿库', model: '柱塞泥浆泵 · 1 用 2 备', type: 'storage', stage: 'water', position: [23,0,2], note: '简介标注三台柱塞泥浆泵（1 用 2 备）输送浓密底流至尾矿库堆存。' },
   { id: 'return-water', label: '高位水池 · 回用', model: '生产回水系统', type: 'water', stage: 'water', position: [23,0,8], note: '汇集精矿脱水滤液、斜板末端溢流及尾矿浓密溢流水。简介标注回水利用率 100%；未提供逐用水点管线。' },
 ];

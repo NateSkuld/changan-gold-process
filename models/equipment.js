@@ -344,50 +344,83 @@ export function createCyclone() {
 
 export function createFlotation() {
   const group = new THREE.Group(), parts = [], layers = [], flows = [];
-  group.name = '机械搅拌浮选机 · 通用原理';
-  const linerMaterial=new THREE.MeshStandardMaterial({color:0x52645f,metalness:.08,roughness:.78,side:THREE.DoubleSide});
-  const tank = part(group,parts,'flotation-tank','浮选槽体与衬里','槽体容纳矿浆，内衬保护槽壁。前半槽壁和液面可剖开，观察叶轮附近混合、槽内循环及上部泡沫区；尺寸与槽型均为通用示意。',[1.65,1.8,.8],[3.4,0,0]);
-  for(const x of [-1.4,1.4])for(const z of [-1.1,1.1])foot(tank,x,z,.45);
-  wetWall(tank,2,2,2.35,1.8,.1,mat.teal);
-  wetWall(tank,1.895,1.895,2.23,1.8,.045,linerMaterial);
-  cyl(tank,2,.17,[0,.61,0],mat.dark);
-  ring(tank,2.02,.075,[0,.69,0],mat.edge);ring(tank,2.04,.075,[0,2.98,0],mat.brass);
-  for(let i=0;i<12;i++){
-    const a=i*Math.PI/6,x=Math.sin(a)*2.035,z=Math.cos(a)*2.035;
-    box(tank,[.065,1.98,.065],[x,1.83,z],mat.edge,undefined,z>.05);
-    for(const y of [.8,2.84])cyl(tank,.04,.08,[x,y,z],mat.steel,undefined,.04,z>.05,6);
+  group.name = '浮选机 · 双视图复建';
+  // Dimensions are overridden dimension TEXT in the supplied DWG, not a
+  // single drawing-space scale. Both projections agree at the centreline.
+  const mm=.0016, L=2180*mm, W=2250*mm, H=1900*mm, R=W/2;
+  const floor=.16, lip=floor+H, t=.032;
+  group.userData.unitsPerMetre=mm*1000;
+  group.userData.cad={drawing:'浮选机.dwg', tankMm:[2180,2250,1900], sideInsetMm:550, bottomOffsetMm:400, processCapacity:null};
+  const tank = part(group,parts,'flotation-tank','U 形浮选槽','正视图标注 2180 mm，侧视图跨宽 2250 mm，槽底到上缘 1900 mm。侧视两直壁接半圆底；近侧剖开后可见槽底与中心轴。壁厚、漆色为显示用，原图没有标注。',[.7,2.35,W/2],[3.4,0,0]);
+  // Positive-Z half opens towards the viewer. Each shell has a continuous
+  // curved base and a flat end closure cut along that same centre plane.
+  const profile=(sign,inset=0)=>{
+    const r=R-inset, pts=[[sign*r,H]];
+    for(let j=0;j<=36;j++){
+      const a=j*Math.PI/72;
+      pts.push([sign*r*Math.cos(a),R-r*Math.sin(a)]);
+    }
+    return pts;
+  };
+  function section(parent,points,x0,length,material,cut,name){
+    const shape=new THREE.Shape(points.map(([z,y])=>new THREE.Vector2(z,y)));
+    shape.closePath();
+    const g=new THREE.ExtrudeGeometry(shape,{depth:length,bevelEnabled:false,curveSegments:12});
+    g.rotateY(-Math.PI/2);
+    const o=mesh(parent,g,material,[x0+length,floor,0],undefined,cut);o.name=name;return o;
   }
-  for(const x of [-1.1,1.1])box(tank,[.12,1.5,.32],[x,1.65,-1.45],mat.dark);
+  const shellGroup=new THREE.Group();shellGroup.name='图示U形槽外壳';tank.add(shellGroup);
+  for(const sign of [-1,1]){
+    const cut=sign>0, outer=profile(sign), inner=profile(sign,t);
+    section(shellGroup,[...outer,...inner.reverse()],-L/2,L,mat.teal,cut,'卷板槽身');
+    for(const x of [-L/2,L/2-t]){
+      section(shellGroup,[...outer,[0,H]],x,t,mat.teal,cut,'槽端板');
+      box(tank,[.052,.05,R],[x+t/2,lip-.025,sign*R/2],mat.edge,undefined,cut);
+    }
+    box(tank,[L,.07,.055],[0,lip-.035,sign*(R-.025)],mat.edge,undefined,cut);
+  }
 
-  const rotor=part(group,parts,'flotation-rotor','叶轮、定子与主轴','主轴带动叶轮旋转，周围定子保持固定。叶轮把矿浆向外泵送并分散空气，矿浆在槽内循环；机械形状与速度为教学示意。',[0,1.3,.2],[0,.6,2.8]);
+  const rotor=part(group,parts,'flotation-rotor','中心主轴与搅拌机构','图中可辨中心立轴、下方锥台轮廓和固定框，底部两侧定位线距端面各 550 mm。叶片数和定子内部未详绘；剖视的叶片与流线用于解释搅拌。',[0,1.45,.25],[0,.6,2.8]);
   const shaft=new THREE.Group();shaft.name='旋转主轴';rotor.add(shaft);
-  cyl(shaft,.10,3,[0,2.52,0],mat.steel);
-  for(const y of [1.63,3.62])cyl(shaft,.19,.18,[0,y,0],mat.dark);
-  box(shaft,[.05,.9,.05],[.115,3.1,0],mat.brass);
-  const impeller=new THREE.Group();impeller.position.y=1.3;impeller.name='旋转叶轮';rotor.add(impeller);
-  cyl(impeller,.56,.1,[0,.13,0],mat.brass);cyl(impeller,.56,.08,[0,-.2,0],mat.dark);
-  for(let i=0;i<8;i++){const a=i*Math.PI/4;box(impeller,[.43,.3,.07],[Math.cos(a)*.32,-.03,Math.sin(a)*.32],mat.brass,[0,-a,0]);}
-  cyl(impeller,.18,.5,[0,0,0],mat.dark);
+  cyl(shaft,.123,3.03,[0,2.94,0],mat.steel);
+  for(const y of [lip-.13,lip+.65])cyl(shaft,.185,.11,[0,y,0],mat.dark);
+  const impeller=new THREE.Group();impeller.position.y=1.32;impeller.name='旋转叶轮';rotor.add(impeller);
+  cyl(impeller,.49,.39,[0,0,0],mat.edge,undefined,.30);
+  cyl(impeller,.49,.055,[0,.19,0],mat.steel);
+  for(let i=0;i<8;i++){const a=i*Math.PI/4;box(impeller,[.23,.25,.045],[Math.cos(a)*.40,-.06,Math.sin(a)*.40],mat.brass,[0,-a,0]);}
   const stator=new THREE.Group();stator.name='固定定子';stator.userData.stationary=true;rotor.add(stator);
-  for(let i=0;i<16;i++){const a=i*Math.PI/8;box(stator,[.1,.62,.2],[Math.cos(a)*.82,1.27,Math.sin(a)*.82],mat.steel,[0,-a,0]);}
-  ring(stator,.83,.045,[0,.97,0],mat.dark);ring(stator,.83,.045,[0,1.6,0],mat.dark);
-  for(const a of [Math.PI/4,Math.PI*3/4,Math.PI*5/4,Math.PI*7/4])beam(stator,[Math.cos(a)*.82,.98,Math.sin(a)*.82],[Math.cos(a)*1.05,.72,Math.sin(a)*1.05],.045,mat.dark);
+  const lowerX=L/2-550*mm, lowerY=floor+400*mm;
+  for(const x of [-lowerX,lowerX]){
+    for(const z of [-.30,.30])box(stator,[.085,.19,.12],[x,lowerY+.095,z],mat.steel);
+    box(stator,[.17,.075,.75],[x,lowerY+.20,0],mat.dark);
+  }
+  for(const z of [-.30,.30])box(stator,[2*lowerX+.08,.07,.07],[0,lowerY+.235,z],mat.dark);
+  for(let i=0;i<12;i++){
+    const a=i*Math.PI/6;box(stator,[.084,.60,.105],[Math.cos(a)*.65,1.34,Math.sin(a)*.65],mat.steel,[0,-a,0]);
+  }
+  ring(stator,.65,.033,[0,1.06,0],mat.dark);ring(stator,.65,.033,[0,1.64,0],mat.dark);
   const circulation=wetOverlay(rotor,'叶轮泵送与矿浆循环');layers.push(circulation);
   for(const side of [-1,1]){
     const circulationPoints=[[side*.48,1.31,.38],[side*1.12,1.3,.45],[side*1.58,1.57,.48],[side*1.58,2.13,.45],[side*.85,2.34,.3],[side*.36,1.87,.25]];
     flows.push(wetFlow(circulation,circulationPoints,{name:`矿浆循环 ${side<0?'左':'右'}`,color:0x57b7a7,count:13,speed:.12,size:.043,arrows:4,closed:true,step:0}));
   }
 
-  const drive=part(group,parts,'flotation-drive','传动桥架与电机','桥架支承电机、轴承和主轴。电机经传动机构带动叶轮；定子固定在槽内，不跟随主轴旋转。',[0,4.18,0],[0,1.85,0]);
-  for(const z of [-.38,.38])box(drive,[4.7,.22,.15],[0,3.52,z],mat.dark);
-  for(const x of [-2.15,2.15]){for(const z of [-.38,.38])box(drive,[.15,.6,.15],[x,3.22,z],mat.dark);box(drive,[.28,.09,.9],[x,3.54,0],mat.steel);}
-  const grating=new THREE.InstancedMesh(new THREE.BoxGeometry(.025,.04,.76),mat.steel,20),staticDummy=new THREE.Object3D();
-  for(let i=0;i<20;i++){staticDummy.position.set(-2.03+i*.214,3.66,0);staticDummy.updateMatrix();grating.setMatrixAt(i,staticDummy.matrix);}grating.computeBoundingBox();grating.computeBoundingSphere();drive.add(grating);
-  cyl(drive,.38,.31,[0,3.76,0],mat.teal);motor(drive,[0,4.33,0],.78,.31,'y');
-  for(const x of [-1.9,-.95,.95,1.9])beam(drive,[x,3.62,-.4],[x,4.17,-.4],.026,mat.brass);
-  beam(drive,[-2.05,4.17,-.4],[2.05,4.17,-.4],.028,mat.brass);
+  const drive=part(group,parts,'flotation-drive','槽顶横梁与带槽轮','按正视图还原跨槽横梁、中心轴线和上部轮缘的槽形轮廓。轮高、槽形和支承截面按轮廓示意，未给出的电机位置与皮带路线不作推定。',[0,4.15,0],[0,1.85,0]);
+  for(const z of [-.27,.27]){
+    box(drive,[L,.19,.05],[0,lip-.075,z],mat.edge);
+    for(const y of [lip-.18,lip+.025])box(drive,[L,.025,.155],[0,y,z],mat.dark);
+  }
+  for(const x of [-L/2+.065,L/2-.065])box(drive,[.13,.07,.70],[x,lip-.18,0],mat.steel);
+  cyl(drive,.20,.59,[0,lip+.31,0],mat.edge);
+  cyl(drive,.28,.075,[0,lip+.059,0],mat.dark);
+  // Top grooved wheel outline and hub on one shaft; no assumed belt drive model.
+  const profileWheel=[[.13,-.22],[.94,-.22],[.94,-.18],[.84,-.145],[.84,-.115],[.94,-.08],[.94,-.045],[.84,-.012],[.84,.012],[.94,.045],[.94,.08],[.84,.115],[.84,.145],[.94,.18],[.94,.22],[.13,.22],[.13,-.22]];
+  const wheel = new THREE.Group();wheel.name='上部带槽轮';wheel.position.y=lip+.85;drive.add(wheel);
+  mesh(wheel,new THREE.LatheGeometry(profileWheel.map(([x,y])=>new THREE.Vector2(x,y)),72),mat.dark);
+  cyl(wheel,.217,.54,[0,0,0],mat.steel);
+  box(wheel,[.065,.025,.13],[.163,.276,0],mat.brass);
 
-  const air=part(group,parts,'flotation-air','充气管与携矿气泡','空气从管路进入叶轮附近并被分散。部分经药剂调理的疏水矿粒附着于气泡表面，上升进入泡沫；金色小点是携矿示意，不是可见金粒或回收率统计。',[-.85,2.03,.65],[-3.1,0,.7]);
+  const air=part(group,parts,'flotation-air','充气与携矿气泡（示意）','气管路线为运行示意。空气从管路进入叶轮附近并被分散。部分经药剂调理的疏水矿粒附着于气泡表面，上升进入泡沫；金色小点是携矿示意，不是可见金粒或回收率统计。',[-.85,2.03,.65],[-3.1,0,.7]);
   const airPoints=[[-3.1,3.23,-.7],[-1.38,3.23,-.7],[-.35,3.18,-.35],[-.24,2.18,-.12],[-.23,1.28,0]];
   wetPipe(air,airPoints,.085,mat.brass,.025);wetFlange(air,[-2.6,3.23,-.7],.15,'x');
   const bubblesLayer=wetOverlay(air,'气泡上升与矿粒附着');layers.push(bubblesLayer);
@@ -410,24 +443,31 @@ export function createFlotation() {
     bubbles.instanceMatrix.needsUpdate=true;attached.instanceMatrix.needsUpdate=true;
   }
 
-  const froth=part(group,parts,'flotation-froth','泡沫层与精矿溜槽','携矿泡沫汇集在液面，越过槽沿流入精矿溜槽并排出。泡沫上方金色粒子表示含矿泡沫的去向；槽内的未回收矿浆从低位出口流向后续作业。',[1.85,3.08,1],[0,1.35,-2.8]);
-  const surfaceMaterial=new THREE.MeshStandardMaterial({color:0x9b9b7d,metalness:.06,roughness:.88,side:THREE.DoubleSide});
-  for(const [start,removable]of [[0,false],[Math.PI,true]])mesh(froth,new THREE.CircleGeometry(1.88,48,start,Math.PI),surfaceMaterial,[0,2.91,0],[-Math.PI/2,0,0],removable);
+  const froth=part(group,parts,'flotation-froth','泡沫层与精矿溜槽（示意）','携矿泡沫汇集后越过槽沿。图纸未标液位与精矿口；泡沫厚度、溜槽位置和越堰轨迹为工艺示意。',[1.85,3.08,.5],[0,1.35,-2.8]);
+  const surfaceMaterial=new THREE.MeshStandardMaterial({color:0x9b9b7d,metalness:.06,roughness:.88});
+  for(const sign of [-1,1])box(froth,[L-.09,.035,R-.045],[0,lip-.16,sign*(R-.045)/2],surfaceMaterial,undefined,sign>0);
   const frontFoam=new THREE.Group();frontFoam.userData.cutaway=true;froth.add(frontFoam);
   const backFoam=new THREE.Group();froth.add(backFoam);
   for(const[holder,sign]of [[backFoam,-1],[frontFoam,1]]){
-    const foam=new THREE.InstancedMesh(new THREE.SphereGeometry(1,8,6),mat.pale,54),d=new THREE.Object3D();
-    for(let i=0;i<54;i++){const a=(i*2.39996323)%Math.PI,r=Math.sqrt((i+1)/54)*1.88,s=.11+(i%4)*.019;d.position.set(Math.cos(a)*r,2.97+i%3*.016,Math.sin(a)*r*sign);d.scale.set(s,s*.52,s);d.updateMatrix();foam.setMatrixAt(i,d.matrix);}
+    const foam=new THREE.InstancedMesh(new THREE.SphereGeometry(1,8,6),mat.pale,60),d=new THREE.Object3D();
+    for(let i=0;i<60;i++){
+      const x=((i%10+.5+(i%3-1)*.17)/10-.5)*(L-.22), z=(Math.floor(i/10)+.55+(i%4-1.5)*.12)/6*(R-.12);
+      const s=.12+(i%4)*.018;d.position.set(x,lip-.14+i%3*.015,z*sign);d.scale.set(s,s*.49,s);d.updateMatrix();foam.setMatrixAt(i,d.matrix);
+    }
     foam.computeBoundingBox();foam.computeBoundingSphere();foam.castShadow=true;holder.add(foam);
   }
-  wetWall(froth,2.32,2.32,.34,2.88,.055,mat.edge);
-  mesh(froth,new THREE.RingGeometry(2.0,2.32,64),mat.teal,[0,2.71,0],[-Math.PI/2,0,0]);
-  const concentratePoints=[[2.15,2.77,0],[2.65,2.58,0],[3,2.12,0],[3.8,2.06,0]];
+  // A single side launder matches the straight tank edge rather than an
+  // annular launder left over from the former generic circular cell.
+  const launder=new THREE.Group();launder.name='原理示意：直边泡沫槽';froth.add(launder);
+  box(launder,[.30,.055,W-.10],[L/2+.155,lip-.30,0],mat.edge);
+  box(launder,[.043,.31,W-.10],[L/2+.29,lip-.17,0],mat.teal);
+  for(const z of [-1,1])box(launder,[.30,.31,.047],[L/2+.155,lip-.17,z*(W/2-.055)],mat.teal);
+  const concentratePoints=[[L/2+.15,lip-.30,0],[2.65,2.58,0],[3,2.12,0],[3.8,2.06,0]];
   wetPipe(froth,concentratePoints,.16,mat.teal);wetFlange(froth,[3.8,2.06,0],.25,'x');
   const frothLayer=wetOverlay(froth,'泡沫越堰与精矿排出');layers.push(frothLayer);
-  flows.push(wetFlow(frothLayer,[[.5,3.025,.6],[1.2,3.04,.48],[1.82,3.06,.2],[2.1,3.02,0],...concentratePoints],{name:'携矿泡沫 → 精矿溜槽',color:0xf1c77c,count:16,speed:.075,size:.061,arrows:4,step:2}));
+  flows.push(wetFlow(frothLayer,[[.5,lip-.09,.6],[1.2,lip-.04,.48],[L/2+.005,lip+.04,.2],[L/2+.16,lip-.06,0],...concentratePoints],{name:'携矿泡沫 → 精矿溜槽',color:0xf1c77c,count:16,speed:.075,size:.061,arrows:4,step:2}));
 
-  const feeds=part(group,parts,'flotation-pulp','给矿口与槽底矿浆出口','给矿管把调理后的矿浆送入槽内。未被该槽泡沫回收的矿浆从低位出口排出；进入下一次浮选或尾矿处理由所属工艺节点决定，不能把每个槽的排浆都视作最终尾矿。',[-2.5,1.05,.4],[0,0,-4.3]);
+  const feeds=part(group,parts,'flotation-pulp','给矿与矿浆出口（示意）','管口位置未见图纸标注。给矿管把调理后的矿浆送入槽内。未被该槽泡沫回收的矿浆从低位出口排出；进入下一次浮选或尾矿处理由所属工艺节点决定，不能把每个槽的排浆都视作最终尾矿。',[-2.5,1.05,.4],[0,0,-4.3]);
   const feedPoints=[[-3.9,1.52,0],[-2.85,1.52,0],[-2.28,1.52,0],[-1.05,1.46,0]];
   wetPipe(feeds,feedPoints,.22,mat.teal);wetFlange(feeds,[-3.65,1.52,0],.34,'x');
   const tailPoints=[[1.3,.91,-.75],[2.65,.91,-.75],[2.65,1.44,-.75],[3.7,1.44,-.75]];
@@ -438,7 +478,13 @@ export function createFlotation() {
   flows.push(wetFlow(pulp,feedPoints,{name:'矿浆给入',color:0x57b7a7,count:9,speed:.12,size:.05,arrows:2,step:0}));
   flows.push(wetFlow(pulp,tailPoints,{name:'槽底矿浆 → 后续作业',color:0x93b9ae,count:12,speed:.1,size:.047,arrows:3,step:2}));
   const modes=wetModes(group,layers,flows,index=>{const active=index<0||index===1;bubbleMaterial.opacity=active?.58:.14;mineralMaterial.opacity=active?1:.22;});
-  function update(delta,time){const clock=Number.isFinite(time)?time:0;impeller.rotation.y=-clock*1.25;shaft.rotation.y=-clock*1.25;flows.forEach(flow=>flow.update(clock));updateBubbles(clock);}
+  function update(delta,time){const clock=Number.isFinite(time)?time:0;impeller.rotation.y=-clock*1.25;shaft.rotation.y=wheel.rotation.y=-clock*1.25;flows.forEach(flow=>flow.update(clock));updateBubbles(clock);}
+  const applyMode=modes.setViewMode;
+  const processOnly=[air,froth,feeds].map(root=>{
+    const wrapper=new THREE.Group();wrapper.name='原理补充，图中未定型';
+    wrapper.add(...root.children.slice());root.add(wrapper);return wrapper;
+  });
+  modes.setViewMode=(view)=>{applyMode(view);for(const o of processOnly)o.visible=view!=='solid';};
   update(0,0);modes.setViewMode('solid');
   const operationGuide={
     title:'从矿浆到含矿泡沫',summary:'青绿表示矿浆循环，浅色气泡携金色矿粒上升，米金色表示含矿泡沫越堰进入精矿溜槽。',
